@@ -14,6 +14,7 @@ import {
   type StoneType,
   type View,
 } from "./design";
+import { applyPreset as applyPresetTo, type PresetName } from "./presets";
 
 /**
  * The single source of truth, deliberately OUTSIDE the React tree.
@@ -34,6 +35,10 @@ type DesignStore = {
   setSetting: (setting: Setting) => void;
   setEngraving: (engraving: Engraving | null) => void;
   setView: (view: View) => void;
+  setSizeUk: (sizeUk: string) => void;
+  applyPreset: (name: PresetName) => void;
+  /** Wholesale replace — used by persistence restore and by the tween loop. */
+  replace: (design: DesignState) => void;
   reset: () => void;
 };
 
@@ -100,6 +105,9 @@ export const useDesign = create<DesignStore>((set, get) => ({
     set((s) => ({ design: { ...s.design, setting, settingChosen: true } })),
   setEngraving: (engraving) => set((s) => ({ design: { ...s.design, engraving } })),
   setView: (view) => set((s) => ({ design: { ...s.design, view } })),
+  setSizeUk: (sizeUk) => set((s) => ({ design: { ...s.design, sizeUk } })),
+  applyPreset: (name) => set((s) => ({ design: applyPresetTo(s.design, name) })),
+  replace: (design) => set({ design }),
   reset: () => set({ design: initialDesign }),
 }));
 
