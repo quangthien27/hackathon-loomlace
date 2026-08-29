@@ -48,6 +48,12 @@ interface ModelContext extends EventTarget {
     options?: ModelContextRegisterToolOptions,
   ): Promise<void>;
   getTools(options?: { fromOrigins?: string[] }): Promise<RegisteredTool[]>;
+  /**
+   * NOTE: the spec IDL says `object inputObject`, but Chrome 152 requires a
+   * JSON string and makes both arguments mandatory. Typed as shipped, not as
+   * specified — verified on Chrome 152, 30 Aug 2026.
+   */
+  executeTool(tool: RegisteredTool, inputJson: string): Promise<string>;
   ontoolchange: ((this: ModelContext, ev: Event) => unknown) | null;
 }
 

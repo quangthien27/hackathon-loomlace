@@ -41,6 +41,28 @@ export function installMockModelContext(): boolean {
       target.dispatchEvent(new Event("toolchange"));
     },
 
+    /**
+     * Chrome 152 diverges from the spec IDL here: it takes the input as a JSON
+     * *string* (an object throws "Failed to parse input arguments"), both
+     * arguments are mandatory despite being `optional` in the IDL, and the
+     * result comes back JSON-serialised as a DOMString. Mirrored so local
+     * testing is a fair rehearsal.
+     */
+    async executeTool(
+      tool: RegisteredTool,
+      inputJson: string,
+    ): Promise<string> {
+      const entry = entries.get(tool.name);
+      if (!entry) throw new Error(`no such tool: ${tool.name}`);
+      if (typeof inputJson !== "string") {
+        throw new Error("Failed to parse input arguments");
+      }
+      const result = await entry.tool.execute(JSON.parse(inputJson), {
+        signal: new AbortController().signal,
+      });
+      return JSON.stringify(result);
+    },
+
     async getTools(): Promise<RegisteredTool[]> {
       return [...entries.values()].map(({ tool }) => ({
         name: tool.name,

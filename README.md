@@ -12,9 +12,27 @@ Built for [The WebMCP Challenge](https://webmcp.devpost.com/) (OpenAI × Devpost
 
 ## Status
 
-**Day 1 — gate harness.** The page currently shows an instrumentation panel, not
-the product. Its job is to prove the WebMCP pipeline works before any renderer
-is written. The parametric ring lands next.
+**Day 1 — gate harness, passing.** The page currently shows an instrumentation
+panel, not the product. Its job was to prove the WebMCP pipeline works before
+any renderer is written. Verified against real `document.modelContext` on
+Chrome 152: tool discovery, dynamic registration, `toolchange`, teardown and
+re-registration via `AbortSignal`, and live-state reads under concurrent human
+editing. The parametric ring lands next.
+
+### Gotcha worth knowing
+
+Chrome 152 diverges from the spec IDL on `executeTool`. The IDL declares
+`executeTool(RegisteredTool tool, optional object inputObject)`, but Chrome
+requires the input as a **JSON string** and makes both arguments mandatory:
+
+```js
+await mc.executeTool(tool, JSON.stringify({ widthMm: 3.4 }))  // ✅
+await mc.executeTool(tool, { widthMm: 3.4 })                  // ❌ "Failed to parse input arguments"
+```
+
+The result comes back JSON-serialised as a `DOMString`. This affects callers
+only — tool definitions are unaffected. The `?mock=1` shim mirrors the shipped
+behaviour rather than the specified one.
 
 ## Run it
 
