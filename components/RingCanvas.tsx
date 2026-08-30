@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { clamp, type DesignState, type Stone } from "@/lib/design";
+import { centreStone, clamp, type DesignState, type Stone } from "@/lib/design";
 import { useDesign } from "@/lib/store";
 import { bandLayers, bandOutlinePath } from "@/lib/render/band";
 import {
@@ -84,7 +84,7 @@ export function RingCanvas({ design: eased, onMoveStone }: Props) {
 
   const engraving = engravingRender(design, design.view);
   const layers = bandLayers(design, design.view);
-  const centre = design.stones[0];
+  const centre = centreStone(design);
   const isInside = design.view === "inside";
 
   return (

@@ -8,6 +8,7 @@
  * `formatGBP` ever produces a display string.
  */
 
+import { centreStone } from "./design";
 import type { Cut, DesignState, Metal, Setting, Stone, StoneType } from "./design";
 
 export type PriceLine = { label: string; detail: string; pence: number };
@@ -149,18 +150,16 @@ export const SETTING_SMALL_STONE_RATE_PENCE_PER_MM: Record<Setting, number> = {
 };
 
 function priceSetting(design: DesignState): PriceLine | null {
-  if (design.stones.length === 0) return null;
-  const centreStone = design.stones.reduce((biggest, s) =>
-    s.sizeMm > biggest.sizeMm ? s : biggest,
-  );
+  const centre = centreStone(design);
+  if (!centre) return null;
   const base = SETTING_BASE_PENCE[design.setting];
   const smallStones = Math.round(
-    SETTING_SMALL_STONE_RATE_PENCE_PER_MM[design.setting] * centreStone.sizeMm,
+    SETTING_SMALL_STONE_RATE_PENCE_PER_MM[design.setting] * centre.sizeMm,
   );
   const pence = base + smallStones;
   const detail =
     smallStones > 0
-      ? `${design.setting} setting, incl. accent stones sized to a ${centreStone.sizeMm.toFixed(1)}mm centre`
+      ? `${design.setting} setting, incl. accent stones sized to a ${centre.sizeMm.toFixed(1)}mm centre`
       : `${design.setting} setting`;
   return { label: "Setting", detail, pence };
 }

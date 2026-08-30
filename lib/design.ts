@@ -62,6 +62,23 @@ export const initialDesign: DesignState = {
   sizeUk: "M",
 };
 
+/**
+ * The centre stone — the one the setting is built around.
+ *
+ * Defined in exactly one place because several modules need it and they must
+ * agree: the renderer wraps this stone in the halo/bezel/claws, the controls
+ * edit it, and the price charges melee against its size. Picking "the largest
+ * stone" in one module and "the first" in another silently prices a different
+ * ring from the one on screen the moment an accent stone is bigger than the
+ * centre.
+ *
+ * It is the first stone. Adding a stone appends, so the centre is whichever
+ * stone the design started from.
+ */
+export function centreStone(design: DesignState): Stone | undefined {
+  return design.stones[0];
+}
+
 export function describeBand(b: DesignState["band"]) {
   return `${b.widthMm.toFixed(1)}mm ${b.profile} band in ${b.metal} gold`;
 }

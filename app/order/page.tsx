@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { RingCanvas } from "@/components/RingCanvas";
-import { initialDesign, type DesignState } from "@/lib/design";
+import { centreStone, initialDesign, type DesignState } from "@/lib/design";
 import { estimatePrice, formatGBP } from "@/lib/price";
 import { METAL, STONE } from "@/lib/render/materials";
 
@@ -61,7 +61,7 @@ function OrderSummary() {
   }
 
   const price = estimatePrice(design);
-  const stone = design.stones[0];
+  const stone = centreStone(design);
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-10 p-6 lg:flex-row lg:items-center lg:gap-14 lg:p-12">

@@ -1,7 +1,7 @@
 "use client";
 
 import type { Cut, DesignState, Metal, Profile, Setting, StoneType, View } from "@/lib/design";
-import { BAND_MAX_MM, BAND_MIN_MM, STONE_MAX_MM, STONE_MIN_MM } from "@/lib/design";
+import { BAND_MAX_MM, BAND_MIN_MM, centreStone, STONE_MAX_MM, STONE_MIN_MM } from "@/lib/design";
 import { METAL, STONE } from "@/lib/render/materials";
 import { PRESET_BLURB, PRESET_NAMES, type PresetName } from "@/lib/presets";
 import { useDesign } from "@/lib/store";
@@ -28,7 +28,7 @@ const SETTING_LABEL: Record<Setting, string> = {
  */
 export function Controls({ design }: { design: DesignState }) {
   const s = useDesign.getState();
-  const centre = design.stones[0];
+  const centre = centreStone(design);
 
   return (
     <div className="flex flex-col gap-7">
