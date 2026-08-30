@@ -378,12 +378,14 @@ function Bezel({
   // The under-bezel runs from the wall to the band and follows the cut the
   // whole way. It replaces a cone, which was round whatever the stone was and
   // whose apex went straight through the shank once the stone got big.
-  // Tapered to follow the pavilion down to the band. The end scale is small
-  // because a pavilion is nearly a point by the time it reaches the shank;
-  // leaving the skirt wide left a visible tube of metal around nothing.
+  // Tapered to follow the pavilion down to the band, then CUT FLAT rather than
+  // run to a point. A cone touching the shank at a single vertex reads as a
+  // spike balanced on the ring; a real under-bezel is sawn off and soldered on
+  // a face. The cut sits a little inside the metal so the joint closes.
+  const footScale = 0.42;
   const skirt = useMemo(
-    () => loftedSkirt(cut, radius, 1.13, wallBottom, 0.2, -seatDepth),
-    [cut, radius, wallBottom, seatDepth],
+    () => loftedSkirt(cut, radius, 1.13, wallBottom, footScale, -seatDepth - radius * 0.06, true),
+    [cut, radius, wallBottom, seatDepth, footScale],
   );
   useEffect(() => () => skirt.dispose(), [skirt]);
 

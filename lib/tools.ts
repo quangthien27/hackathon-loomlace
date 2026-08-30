@@ -8,7 +8,7 @@ import {
   type Profile,
   type StoneType,
 } from "./design";
-import { orderUrl } from "./order";
+import { orderHandoff } from "./order";
 import { estimatePrice, formatGBP } from "./price";
 import { PRESET_NAMES, PRESET_BLURB } from "./presets";
 import { currentDesign, useDesign } from "./store";
@@ -409,7 +409,7 @@ export const coreTools: ModelContextTool[] = [
       if (i.note !== undefined && typeof i.note !== "string")
         return fail('"note" must be a string.');
       const design = currentDesign();
-      const url = orderUrl(design, i.note);
+      const url = orderHandoff(design, i.note);
 
       if (typeof window === "undefined") {
         return { ok: false, summary: "No browser window available to open the store in.", url, design };

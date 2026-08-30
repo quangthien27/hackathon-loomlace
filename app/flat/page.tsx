@@ -6,7 +6,7 @@ import { ActivityFeed, AgentBadge, PriceBreakdown } from "@/components/AgentOver
 import { Controls } from "@/components/Controls";
 import { RingCanvas } from "@/components/RingCanvas";
 import { useEasedDesign } from "@/components/useEasedDesign";
-import { orderUrl } from "@/lib/order";
+import { orderHandoff } from "@/lib/order";
 import { estimatePrice, formatGBP } from "@/lib/price";
 import { loadDesign, scheduleSave } from "@/lib/persist";
 import { installMockModelContext } from "@/lib/mock-model-context";
@@ -117,7 +117,7 @@ export default function Page() {
               anyone who just wanted to click. */}
           <button
             type="button"
-            onClick={() => window.open(orderUrl(design), "_blank", "noopener")}
+            onClick={() => window.open(orderHandoff(design), "_blank", "noopener")}
             className="mt-4 w-full rounded-lg bg-stone-900 px-4 py-2.5 text-[13px] font-medium text-stone-50 transition hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white"
           >
             Review this ring

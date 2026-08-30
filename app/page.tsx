@@ -12,7 +12,7 @@ import { assumeWebGL, hasWebGL, subscribeWebGL } from "@/lib/webgl";
 import { initialDesign } from "@/lib/design";
 import { installMockModelContext } from "@/lib/mock-model-context";
 import { loadDesign, scheduleSave } from "@/lib/persist";
-import { orderUrl } from "@/lib/order";
+import { orderHandoff } from "@/lib/order";
 import { estimatePrice, formatGBP } from "@/lib/price";
 import { useDesign } from "@/lib/store";
 import { coreTools, engravingTool } from "@/lib/tools";
@@ -72,7 +72,7 @@ export default function Studio3DPage() {
   const shown = useEasedDesign(design);
   const fpsRef = useRef<HTMLSpanElement>(null);
   const [mode, setMode] = useState<GemMode>("refractive-core");
-  const [exposure, setExposure] = useState(1.35);
+  const [exposure, setExposure] = useState(1.7);
   // Read like any other external, unchanging fact about the environment.
   const webgl = useSyncExternalStore(subscribeWebGL, hasWebGL, assumeWebGL);
 
@@ -159,8 +159,8 @@ export default function Studio3DPage() {
               <span className="opacity-70">light</span>
               <input
                 type="range"
-                min={0.7}
-                max={2.4}
+                min={0.8}
+                max={3.2}
                 step={0.05}
                 value={exposure}
                 onChange={(e) => setExposure(Number(e.target.value))}
@@ -219,7 +219,7 @@ export default function Studio3DPage() {
               anyone who just wanted to click. */}
           <button
             type="button"
-            onClick={() => window.open(orderUrl(design), "_blank", "noopener")}
+            onClick={() => window.open(orderHandoff(design), "_blank", "noopener")}
             className="mt-4 w-full rounded-lg bg-stone-900 px-4 py-2.5 text-[13px] font-medium text-stone-50 transition hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white"
           >
             Review this ring

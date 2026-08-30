@@ -8,12 +8,23 @@
  * shortcut would be easiest.
  */
 
+import { captureStudioShot, stashShot } from "./capture";
 import { type DesignState } from "./design";
 import { estimatePrice, formatGBP } from "./price";
 
 export const DEFAULT_STORE_URL = "/order";
 
-export function orderUrl(design: DesignState, note?: string): string {
+/**
+ * The full hand-off: photograph the studio, stash it, and build the link.
+ * Used by the sidebar button and by `add_to_cart`, so both produce the same
+ * page rather than one of them quietly falling back to the flat drawing.
+ */
+export function orderHandoff(design: DesignState, note?: string): string {
+  const stashed = stashShot(captureStudioShot());
+  return orderUrl(design, note, stashed);
+}
+
+export function orderUrl(design: DesignState, note?: string, withShot = false): string {
   const base = process.env.NEXT_PUBLIC_STORE_URL || DEFAULT_STORE_URL;
   const price = estimatePrice(design);
 
@@ -33,6 +44,8 @@ export function orderUrl(design: DesignState, note?: string): string {
     price_gbp: formatGBP(price.totalPence),
   });
   if (note) params.set("note", note.slice(0, 200));
+  // Only a flag: the image itself is far too large for a query string.
+  if (withShot) params.set("shot", "1");
 
   return `${base}?${params.toString()}`;
 }

@@ -43,15 +43,15 @@ const PANELS: Panel[] = [
   // Key: a large overhead softbox. For a mirror-finish metal, panel AREA matters
   // more than panel brightness — a small bright source gives one hot dot and a
   // black band, a big one wraps the whole surface.
-  { size: [26, 26], position: [0, 11, 0], rotation: [-Math.PI / 2, 0, 0], color: "#ffffff", intensity: 5.0 },
+  { size: [26, 26], position: [0, 11, 0], rotation: [-Math.PI / 2, 0, 0], color: "#ffffff", intensity: 6.4 },
   // Front fill, so the surface facing the camera is not reading the dark wall.
-  { size: [20, 14], position: [0, 1, 14], rotation: [0, 0, 0], color: "#eaf0ff", intensity: 2.6 },
+  { size: [20, 14], position: [0, 1, 14], rotation: [0, 0, 0], color: "#eaf0ff", intensity: 3.4 },
   // Left and right verticals: these draw the long specular streaks down the band.
   { size: [10, 16], position: [-13, 1, 2], rotation: [0, Math.PI / 2, 0], color: "#ffffff", intensity: 3.6 },
   { size: [10, 16], position: [13, 1, -2], rotation: [0, -Math.PI / 2, 0], color: "#fff2df", intensity: 4.4 },
   // Floor bounce, so the pavilion has something to return and the underside of
   // the band is not a dead black edge.
-  { size: [22, 22], position: [0, -10, 0], rotation: [Math.PI / 2, 0, 0], color: "#ffffff", intensity: 1.8 },
+  { size: [22, 22], position: [0, -10, 0], rotation: [Math.PI / 2, 0, 0], color: "#ffffff", intensity: 2.5 },
   // A dark card behind, which is what gives the metal an edge rather than an
   // even wash. The contrast between this and the panels IS the specular drawing.
   { size: [22, 18], position: [0, 1, -15], rotation: [0, Math.PI, 0], color: "#0c0c10", intensity: 1 },
@@ -100,11 +100,11 @@ export function buildBackdropTexture(): CanvasTexture {
   // A cyclorama, not a card: dark at the poles, lifting towards the horizon,
   // so wherever the camera turns there is a gradient rather than an edge.
   const vertical = ctx.createLinearGradient(0, 0, 0, h);
-  vertical.addColorStop(0, "#121214");
-  vertical.addColorStop(0.34, "#4c4740");
-  vertical.addColorStop(0.52, "#6a6156");
-  vertical.addColorStop(0.72, "#3b3730");
-  vertical.addColorStop(1, "#131211");
+  vertical.addColorStop(0, "#26252a");
+  vertical.addColorStop(0.32, "#6f685e");
+  vertical.addColorStop(0.5, "#8d8478");
+  vertical.addColorStop(0.72, "#5a544b");
+  vertical.addColorStop(1, "#232120");
   ctx.fillStyle = vertical;
   ctx.fillRect(0, 0, w, h);
 
@@ -114,8 +114,8 @@ export function buildBackdropTexture(): CanvasTexture {
   // this is a backdrop, and the actual lighting comes from studio panels.
   for (const cx of [w * 0.25, w * 0.75]) {
     const pool = ctx.createRadialGradient(cx, h * 0.5, 0, cx, h * 0.5, w * 0.3);
-    pool.addColorStop(0, "rgba(196,183,164,0.75)");
-    pool.addColorStop(0.55, "rgba(128,118,105,0.3)");
+    pool.addColorStop(0, "rgba(222,211,193,0.8)");
+    pool.addColorStop(0.55, "rgba(160,149,133,0.34)");
     pool.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = pool;
     ctx.fillRect(0, 0, w, h);
@@ -199,7 +199,7 @@ export function buildStudioEnvironment(renderer: WebGLRenderer): Texture {
   // The surround. BackSide so we are inside the box looking at its walls.
   const room = new Mesh(
     new BoxGeometry(40, 30, 40),
-    new MeshBasicMaterial({ color: new Color("#3a3b41"), side: BackSide }),
+    new MeshBasicMaterial({ color: new Color("#4a4b52"), side: BackSide }),
   );
   scene.add(room);
 

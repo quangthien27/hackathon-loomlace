@@ -51,14 +51,17 @@ const INSIDE_U = 0.5;
 const OUTSIDE_U = 0.78;
 
 /**
- * The inner surface is traversed from +width/2 down to -width/2 (see
- * bandProfile), so v runs backwards across the band relative to the outer
- * surface, and you read the inner wall from inside the bore rather than from
- * outside it. Both effects mirror the text; these were settled by looking at it
- * rather than by reasoning about handedness, which is the honest way to do it.
+ * BOTH surfaces need the same flip.
+ *
+ * That is not obvious — the inner wall is traversed backwards across the band
+ * AND read from inside the bore, while the outer is neither — but the two
+ * reversals cancel, leaving both surfaces wanting the identical mirror. Applying
+ * it only to the inside is why outside engraving came out backwards. Settled by
+ * looking at it rather than by reasoning about handedness, which is the honest
+ * way to do it.
  */
-const INSIDE_MIRROR_X = true;
-const INSIDE_MIRROR_Y = false;
+const MIRROR_X = true;
+const MIRROR_Y = false;
 
 const FONT_FALLBACK = {
   serif: `Georgia, "Times New Roman", serif`,
@@ -157,7 +160,7 @@ export function buildEngravingTexture(
 
   ctx.save();
   ctx.translate((inside ? INSIDE_U : OUTSIDE_U) * WIDTH, stripTop + stripHeight / 2);
-  if (inside) ctx.scale(INSIDE_MIRROR_X ? -1 : 1, INSIDE_MIRROR_Y ? -1 : 1);
+  ctx.scale(MIRROR_X ? -1 : 1, MIRROR_Y ? -1 : 1);
   ctx.fillText(engraving.text, 0, 0);
   ctx.restore();
 

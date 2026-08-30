@@ -473,6 +473,9 @@ export function loftedSkirt(
   topY: number,
   bottomScale: number,
   bottomY: number,
+  /** Close the bottom with a flat face. Without it the truncated cone is an
+   *  open tube and you can see straight up inside it. */
+  capBottom = false,
 ): BufferGeometry {
   const top = girdleOutline(cut, radius * topScale);
   const bottom = girdleOutline(cut, radius * bottomScale);
@@ -487,6 +490,9 @@ export function loftedSkirt(
       new Vector3(bottom[j].x, bottomY, bottom[j].y),
       new Vector3(bottom[i].x, bottomY, bottom[i].y),
     ]);
+  }
+  if (capBottom) {
+    facets.push(bottom.map((p) => new Vector3(p.x, bottomY, p.y)));
   }
   return facetGeometry(facets);
 }

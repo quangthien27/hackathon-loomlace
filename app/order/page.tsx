@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { RingCanvas } from "@/components/RingCanvas";
+import { noShot, readShot, subscribeShot } from "@/lib/capture";
 import { centreStone, initialDesign, type DesignState } from "@/lib/design";
 import { estimatePrice, formatGBP } from "@/lib/price";
 import { METAL, STONE } from "@/lib/render/materials";
@@ -33,6 +34,26 @@ const PROFILE_LABEL: Record<DesignState["band"]["profile"], string> = {
  * This is the FIRST moment any design data leaves the canvas, which is worth
  * saying out loud on the page itself.
  */
+/**
+ * The picture of the ring being ordered.
+ *
+ * Prefers the actual studio frame the customer was looking at when they hit
+ * order — same lighting, same angle, same stone. Falls back to redrawing the
+ * design flat, which is what happens when this link is opened on a device that
+ * never rendered it: a shared URL still shows the right ring, just not the
+ * photograph of it.
+ */
+function RingPreview({ design, wantsShot }: { design: DesignState; wantsShot: boolean }) {
+  const stored = useSyncExternalStore(subscribeShot, readShot, noShot);
+  const shot = wantsShot ? stored : null;
+
+  if (shot) {
+    // eslint-disable-next-line @next/next/no-img-element -- a data URL, not an asset
+    return <img src={shot} alt="Your ring" className="h-full w-full object-cover" />;
+  }
+  return <RingCanvas design={design} onMoveStone={() => {}} />;
+}
+
 export default function OrderPage() {
   return (
     <Suspense fallback={null}>
@@ -66,8 +87,8 @@ function OrderSummary() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-10 p-6 lg:flex-row lg:items-center lg:gap-14 lg:p-12">
-      <div className="aspect-square w-full shrink-0 overflow-hidden rounded-2xl lg:w-[46%]">
-        <RingCanvas design={design} onMoveStone={() => {}} />
+      <div className="aspect-square w-full shrink-0 overflow-hidden rounded-2xl bg-[#1b1a19] lg:w-[46%]">
+        <RingPreview design={design} wantsShot={params.get("shot") === "1"} />
       </div>
 
       <div className="flex flex-1 flex-col gap-7">

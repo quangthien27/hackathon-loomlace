@@ -15,9 +15,20 @@
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BackSide, Group, NeutralToneMapping, PerspectiveCamera, type Texture, Vector3 } from "three";
+import {
+  BackSide,
+  Group,
+  NeutralToneMapping,
+  PerspectiveCamera,
+  SRGBColorSpace,
+  type Texture,
+  Vector2,
+  Vector3,
+  WebGLRenderTarget,
+} from "three";
 import type { DesignState } from "@/lib/design";
 import { useDesign } from "@/lib/store";
+import { registerStudioCapture } from "@/lib/capture";
 import { VIEWS } from "@/lib/render3d/scene";
 import { buildBackdropTexture, buildGemEnvironment, buildStudioEnvironment } from "@/lib/render3d/studio";
 import { Ring3D, type GemMode } from "./Ring3D";
@@ -168,6 +179,66 @@ function Backdrop() {
   );
 }
 
+/**
+ * Publishes a way to photograph the studio.
+ *
+ * Reads back an OFFSCREEN render rather than the canvas itself. Two earlier
+ * attempts failed for reasons worth recording: `toDataURL` on the live canvas
+ * returns a blank frame because the drawing buffer is cleared the moment the
+ * browser composites, and `preserveDrawingBuffer` cannot be switched on through
+ * R3F's `gl` prop — it is a context-CREATION attribute, and a props object is
+ * applied to the renderer after the context already exists. Confirmed by
+ * reading getContextAttributes() back, rather than assumed.
+ *
+ * Rendering into a target we own sidesteps both: the pixels are still there
+ * when we ask for them, and nothing about the page's canvas has to change.
+ */
+function StudioCapture() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  useEffect(
+    () =>
+      registerStudioCapture(() => {
+        const size = gl.getSize(new Vector2());
+        const w = Math.floor(size.x);
+        const h = Math.floor(size.y);
+        // A canvas that has not been laid out yet reports three's 300x150
+        // default. Refusing to shoot it is what stops the order page showing a
+        // thumbnail-sized smear instead of falling back to the drawing.
+        if (w < 240 || h < 240) return null;
+
+        const target = new WebGLRenderTarget(w, h, { colorSpace: SRGBColorSpace });
+        const previous = gl.getRenderTarget();
+        gl.setRenderTarget(target);
+        gl.render(scene, camera);
+
+        const pixels = new Uint8Array(w * h * 4);
+        gl.readRenderTargetPixels(target, 0, 0, w, h, pixels);
+        gl.setRenderTarget(previous);
+        target.dispose();
+
+        const out = document.createElement("canvas");
+        out.width = w;
+        out.height = h;
+        const ctx = out.getContext("2d");
+        if (!ctx) return null;
+
+        // GL reads bottom-up; a canvas is top-down, so copy row by row in reverse.
+        const image = ctx.createImageData(w, h);
+        const stride = w * 4;
+        for (let y = 0; y < h; y++) {
+          const from = (h - 1 - y) * stride;
+          image.data.set(pixels.subarray(from, from + stride), y * stride);
+        }
+        ctx.putImageData(image, 0, 0);
+        return out.toDataURL("image/jpeg", 0.88);
+      }),
+    [gl, scene, camera],
+  );
+  return null;
+}
+
 /** Applies exposure after mount, since onCreated only runs once. */
 function Exposure({ value }: { value: number }) {
   const gl = useThree((s) => s.gl);
@@ -239,6 +310,7 @@ export function RingScene3D({
       />
       <ViewRig view={design.view} ring={ring} />
       <FrameMeter node={fpsRef} />
+      <StudioCapture />
       <Diagnostics />
       <HiddenTabTick />
     </Canvas>
