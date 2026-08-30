@@ -323,18 +323,22 @@ function Claws({
    * gem. A real prong is upright alongside the girdle and only the basket wire
    * below it tapers, which is what this knee reproduces.
    *
-   * Below the knee the wire's slope is deliberately shallower than the
+   * Sits just under the girdle, so the upright section is short and it is the
+   * prong's TIP that grips the stone rather than a post running the full height
+   * of it. Below the knee the wire's slope is deliberately shallower than the
    * pavilion's, so the two diverge on the way down and can never meet again.
    */
-  const kneeY = -radius * 0.16;
+  const kneeY = -radius * 0.06;
 
   return (
     <group>
       {clawAnchors(cut, radius).map(([x, z], i) => {
         // Just proud of the girdle: a claw grips the stone's edge, so a little
         // overlap is right, but the shaft's full width sitting inside it is not.
-        const px = x * 1.05;
-        const pz = z * 1.05;
+        // A touch further out than before, because raising the knee starts the
+        // wire's lean closer to the stone's widest point.
+        const px = x * 1.07;
+        const pz = z * 1.07;
 
         const knee = new Vector3(px, kneeY, pz);
         const footX = x * BASKET_FOOT;
@@ -360,6 +364,14 @@ function Claws({
             {/* Basket wire, leaning in to the gallery. */}
             <mesh position={middle} quaternion={orientation}>
               <cylinderGeometry args={[radius * 0.1, radius * 0.12, length, 12]} />
+              <MetalMat metal={metal} />
+            </mesh>
+            {/* The elbow. Two cylinders meeting at an angle leave a wedge of
+                empty air on the outside of the bend — you can see straight
+                through the joint. A sphere at the pivot fills it, and is how a
+                bent wire actually looks. */}
+            <mesh position={knee}>
+              <sphereGeometry args={[radius * 0.1, 16, 12]} />
               <MetalMat metal={metal} />
             </mesh>
             {/* The bead sits just inboard of the prong, folded over the crown —
