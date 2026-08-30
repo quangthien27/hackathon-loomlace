@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { describeDesign } from "@/lib/describe";
 import { centreStone, clamp, type DesignState, type Stone } from "@/lib/design";
 import { useDesign } from "@/lib/store";
 import { bandLayers, bandOutlinePath } from "@/lib/render/band";
@@ -93,7 +94,7 @@ export function RingCanvas({ design: eased, onMoveStone }: Props) {
       viewBox={VIEW_BOX}
       className="h-full w-full touch-none select-none"
       role="img"
-      aria-label={describeForScreenReader(design)}
+      aria-label={describeDesign(design)}
     >
       <SvgDefs />
       <rect x="0" y="0" width="1000" height="1000" fill="url(#canvas-bg)" />
@@ -228,13 +229,4 @@ function PaveShoulders({ design, centre }: { design: DesignState; centre: Stone 
       })}
     </g>
   );
-}
-
-function describeForScreenReader(d: DesignState): string {
-  const stones = d.stones
-    .map((s: Stone) => `${s.sizeMm}mm ${s.cut} cut ${s.type}`)
-    .join(", ");
-  return `A ${d.band.widthMm}mm ${d.band.profile} ${METAL[d.band.metal].label} ring, ${d.setting} setting${
-    stones ? `, set with ${stones}` : ""
-  }${d.engraving ? `, engraved "${d.engraving.text}"` : ""}. Viewed from the ${d.view}.`;
 }
