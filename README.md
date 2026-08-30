@@ -10,30 +10,6 @@ Built for [The WebMCP Challenge](https://webmcp.devpost.com/) (OpenAI × Devpost
 
 ---
 
-## Status
-
-**Day 1 — gate harness, passing.** The page currently shows an instrumentation
-panel, not the product. Its job was to prove the WebMCP pipeline works before
-any renderer is written. Verified against real `document.modelContext` on
-Chrome 152: tool discovery, dynamic registration, `toolchange`, teardown and
-re-registration via `AbortSignal`, and live-state reads under concurrent human
-editing. The parametric ring lands next.
-
-### Gotcha worth knowing
-
-Chrome 152 diverges from the spec IDL on `executeTool`. The IDL declares
-`executeTool(RegisteredTool tool, optional object inputObject)`, but Chrome
-requires the input as a **JSON string** and makes both arguments mandatory:
-
-```js
-await mc.executeTool(tool, JSON.stringify({ widthMm: 3.4 }))  // ✅
-await mc.executeTool(tool, { widthMm: 3.4 })                  // ❌ "Failed to parse input arguments"
-```
-
-The result comes back JSON-serialised as a `DOMString`. This affects callers
-only — tool definitions are unaffected. The `?mock=1` shim mirrors the shipped
-behaviour rather than the specified one.
-
 ## Run it
 
 ```bash
@@ -41,36 +17,45 @@ pnpm install
 pnpm dev
 ```
 
-To exercise the tools **without** ChatGPT's browser or the Chrome flag, open
-<http://localhost:3000/?mock=1>. That installs a local shim for
-`document.modelContext` implementing the slice of the spec this app uses, and
-exposes a console driver:
+Open the deployed URL in **ChatGPT's in-app browser**, or in Chrome with
+`chrome://flags/#enable-webmcp-testing` enabled.
+
+To exercise the tools without either, open <http://localhost:3000/?mock=1>. That
+installs a local shim for `document.modelContext` and exposes a console driver:
 
 ```js
-await __mcp.call('set_setting_style', { setting: 'halo' })
-await __mcp.call('set_band', { widthMm: 3.4, metal: 'rose' })
-await __mcp.call('get_design_state')
+await __mcp.call('apply_style_preset', { style: 'art-deco' })
+await __mcp.call('place_stone', { type: 'sapphire', cut: 'oval', sizeMm: 7, x: 0.42 })
+await __mcp.call('estimate_price')
 __mcp.tools()
 ```
 
-For the real API, open the deployed URL in ChatGPT's in-app browser, or in
-Chrome with `chrome://flags/#enable-webmcp-testing` enabled.
+### Configuration
 
-## How WebMCP is used
+`NEXT_PUBLIC_STORE_URL` — where `add_to_cart` hands the finished design off for
+checkout. Falls back to a placeholder if unset.
 
-Tools are registered **imperatively on the top-level page** via
-`document.modelContext.registerTool` — no iframes, no declarative form API,
-since ChatGPT's browser supports neither.
+## The tool surface
+
+Ten tools registered imperatively on the top-level page via
+`document.modelContext.registerTool` — no iframes and no declarative form API,
+since ChatGPT's in-app browser supports neither.
 
 | Tool | |
 |---|---|
 | `get_design_state` | read the live design (`readOnlyHint`) |
-| `set_band` | width, profile, metal |
+| `set_band` | width in mm, cross-section profile, metal |
+| `place_stone` | add or move/restyle a stone; returns the new stone's id |
+| `remove_stone` | remove by id; lists valid ids if the id is wrong |
 | `set_setting_style` | solitaire / halo / pavé / bezel |
+| `apply_style_preset` | art-deco / minimalist / vintage → a coordinated bundle |
 | `set_view` | top / side / inside |
-| `add_engraving` | **registered only after a setting is chosen** |
+| `set_size` | UK ring size |
+| `estimate_price` | itemised breakdown (`readOnlyHint`) |
+| `add_to_cart` | hands off to the store — the consequential one |
+| `add_engraving` | **registered only once a setting is chosen** |
 
-### The one architectural decision that matters
+## The one architectural decision that matters
 
 `DesignState` lives in a **module-level Zustand store, outside the React tree**
 (`lib/store.ts`).
@@ -82,21 +67,62 @@ pre-drag design and build on geometry that no longer exists. `getState()` inside
 `execute` always reads live truth, which is exactly what lets a human drag a
 stone mid-conversation and have the agent see it.
 
-`lib/render/*` and `lib/price.ts` are plain TypeScript with no React imports, so
-the agent path and the human path call literally the same functions.
+Everything else follows from that:
 
-Unregistration is by `AbortSignal` — the spec has no `unregisterTool()`.
+- `lib/render/*` and `lib/price.ts` are plain TypeScript with **no React
+  imports**, so the agent path and the human path call literally the same
+  functions rather than two implementations that drift.
+- Registration is **idempotent by tool name**, so Strict Mode's double-invoke is
+  a no-op.
+- Unregistration is by **`AbortSignal`** — the spec has no `unregisterTool()`.
+- `registerTool` wraps every `execute` on the way past to feed the on-screen
+  activity log, so what the human sees can't drift from the real tool surface.
+- Handlers clamp their inputs and return the **resulting state** with a
+  human-readable summary, so an agent can chain edits without a
+  `get_design_state` round trip between each one.
+
+The store always holds the true, final design. The *canvas* eases towards it
+over ~400ms (`components/useEasedDesign.ts`) so an agent's edit redraws legibly
+instead of snapping — but an agent reading a half-finished tween would be worse
+than no animation at all, so the easing never touches the truth.
+
+## Gotcha: Chrome diverges from the spec on `executeTool`
+
+The IDL declares `executeTool(RegisteredTool tool, optional object inputObject)`.
+Chrome 152 requires the input as a **JSON string** and makes both arguments
+mandatory:
+
+```js
+await mc.executeTool(tool, JSON.stringify({ widthMm: 3.4 }))  // ✅
+await mc.executeTool(tool, { widthMm: 3.4 })                  // ❌ "Failed to parse input arguments"
+```
+
+The result comes back JSON-serialised as a `DOMString`. This affects callers
+only — tool definitions are unaffected. The `?mock=1` shim mirrors the shipped
+behaviour rather than the specified one, so local testing stays a fair rehearsal.
 
 ## Layout
 
 ```
-app/page.tsx              'use client' — tool registration lives here
-lib/design.ts             DesignState types, clamps, initial design
-lib/store.ts              Zustand store — single source of truth
-lib/tools.ts              WebMCP tool definitions
-lib/webmcp.ts             idempotent registration, AbortSignal teardown
-lib/mock-model-context.ts local dev shim (?mock=1)
-types/webmcp.d.ts         ambient types mirroring the spec IDL
+app/page.tsx                  'use client' — tool registration lives here
+components/RingCanvas.tsx     the shared surface; drag-to-move stones
+components/Controls.tsx       human controls — same store actions as the tools
+components/stones/*           hand-authored facet art, one per cut
+components/settings/*         claws, halo, pavé, bezel metalwork
+components/SvgDefs.tsx        gradients generated from the palette tokens
+components/useEasedDesign.ts  rAF easing, render-only
+lib/store.ts                  Zustand store — single source of truth
+lib/tools.ts                  WebMCP tool definitions
+lib/webmcp.ts                 idempotent registration, AbortSignal teardown
+lib/render/contract.ts        the coordinate contract — read this first
+lib/render/materials.ts       the palette
+lib/render/band.ts            band geometry per view
+lib/presets.ts                style presets as functions of the current design
+lib/price.ts                  deterministic, auditable price formula
+lib/persist.ts                IndexedDB, with validation on load
+lib/animate.ts                pure interpolation helpers
+lib/mock-model-context.ts     local dev shim (?mock=1)
+types/webmcp.d.ts             ambient types mirroring the spec IDL
 ```
 
 ## Licence
