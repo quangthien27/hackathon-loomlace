@@ -12,6 +12,12 @@ type Activity = ReturnType<typeof getActivity>;
  *
  * `tone` exists because the 3D canvas is dark and the SVG one is light; nothing
  * else differs.
+ *
+ * The dark tone is a dark scrim, not a light one. A white veil was the obvious
+ * choice against a #141312 page, but the badge does not sit on the page — it
+ * sits on the rendered studio, which has a lit backdrop behind the ring and can
+ * be brighter than the pill. Light text on a light wash disappeared exactly
+ * where the ring is brightest. A dark scrim only ever adds contrast.
  */
 export function AgentBadge({
   available,
@@ -25,8 +31,8 @@ export function AgentBadge({
   const dark = tone === "dark";
   return (
     <div
-      className={`pointer-events-none absolute left-5 top-5 flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur-sm ${
-        dark ? "bg-white/10" : "bg-black/[0.055]"
+      className={`pointer-events-none absolute left-5 top-5 flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur-md ${
+        dark ? "bg-black/45 ring-1 ring-white/10" : "bg-black/[0.055]"
       }`}
     >
       <span
@@ -34,7 +40,7 @@ export function AgentBadge({
           available ? (dark ? "bg-emerald-400" : "bg-emerald-600") : "bg-stone-400"
         }`}
       />
-      <span className={`text-[11px] tracking-tight ${dark ? "text-white/70" : "opacity-65"}`}>
+      <span className={`text-[11px] tracking-tight ${dark ? "text-white/85" : "opacity-65"}`}>
         {available ? `${count} tools available to your agent` : "Agent tools idle"}
       </span>
     </div>

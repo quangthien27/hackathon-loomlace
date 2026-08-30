@@ -149,21 +149,26 @@ export default function Studio3DPage() {
         {/* Every canvas control lives in ONE cluster, bottom-right. They used to
             be split between two corners, which collided with the tools badge as
             soon as the viewport got narrow. Wrapping keeps them apart on a
-            phone without needing a breakpoint per control. */}
+            phone without needing a breakpoint per control.
+
+            A dark scrim rather than a white one, for the same reason as the
+            tools badge: these float over the lit studio, not over the page. */}
         {webgl && (
-          <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-wrap items-center justify-end gap-2 text-[11px] text-white/55 sm:inset-x-5 sm:bottom-5">
-            <span className="mr-auto hidden opacity-60 lg:inline">Drag to orbit · scroll to zoom</span>
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-wrap items-center justify-end gap-2 text-[11px] text-white/75 sm:inset-x-5 sm:bottom-5">
+            <span className="mr-auto hidden opacity-70 [text-shadow:0_1px_3px_rgb(0_0_0/0.65)] lg:inline">
+              Drag to orbit · scroll to zoom
+            </span>
 
             <span
               ref={fpsRef}
-              className="pointer-events-auto rounded-full bg-white/10 px-2.5 py-1.5 font-mono tabular-nums backdrop-blur-sm"
+              className="pointer-events-auto rounded-full bg-black/45 px-2.5 py-1.5 font-mono tabular-nums ring-1 ring-white/10 backdrop-blur-md"
               title="Frames per second"
             >
               — fps
             </span>
 
-            <label className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-              <span className="opacity-70">light</span>
+            <label className="pointer-events-auto flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 ring-1 ring-white/10 backdrop-blur-md">
+              <span className="opacity-75">light</span>
               <input
                 type="range"
                 min={0.8}
@@ -172,11 +177,11 @@ export default function Studio3DPage() {
                 value={exposure}
                 onChange={(e) => setExposure(Number(e.target.value))}
                 aria-label="Studio brightness"
-                className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-white/25 accent-white sm:w-20"
+                className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-white/30 accent-white sm:w-20"
               />
             </label>
 
-            <div className="pointer-events-auto flex overflow-hidden rounded-full bg-white/10 backdrop-blur-sm">
+            <div className="pointer-events-auto flex overflow-hidden rounded-full bg-black/45 ring-1 ring-white/10 backdrop-blur-md">
               {(["specular", "refractive", "refract+core"] as const).map((label) => {
                 const value: GemMode =
                   label === "refract+core" ? "refractive-core" : (label as GemMode);
@@ -186,7 +191,7 @@ export default function Studio3DPage() {
                     type="button"
                     onClick={() => setMode(value)}
                     className={`px-2.5 py-1.5 transition sm:px-3 ${
-                      mode === value ? "bg-white/85 text-stone-900" : "hover:bg-white/20"
+                      mode === value ? "bg-white/90 text-stone-900" : "hover:bg-white/15"
                     }`}
                     title="How the centre stone is shaded — see GEM_SPECULAR in materials3d.ts"
                   >
