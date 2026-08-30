@@ -212,19 +212,44 @@ function Rail({
   y,
   tube,
   metal,
+  bandOuterR,
+  bandSeatDepth,
 }: {
   cut: GemCut;
   radius: number;
   scale: number;
+  /** Height of the rail when it is not following the band. */
   y: number;
   tube: number;
   metal: Metal;
+  /**
+   * When given, the rail is laid ON the band rather than at a fixed height.
+   *
+   * A gallery rail at a constant y is a flat hoop, and the band it is supposed
+   * to sit on is a cylinder — so the rail touched at its nearest point and
+   * floated everywhere else. Solving each point of the path against the band's
+   * curve lets the whole rail land, and puts it at the same depth the claw
+   * shafts reach, so the two actually meet instead of merely crossing.
+   *
+   * Passed as two numbers rather than one object so the memo below can depend
+   * on them directly; an object literal would be a fresh reference every render
+   * and rebuild the tube sixty times a second.
+   */
+  bandOuterR?: number;
+  bandSeatDepth?: number;
 }) {
   const geometry = useMemo(() => {
-    const points = outlineRing(cut, radius * scale, 64).map(([x, z]) => new Vector3(x, y, z));
+    const points = outlineRing(cut, radius * scale, 64).map(([x, z]) => {
+      if (bandOuterR === undefined || bandSeatDepth === undefined) return new Vector3(x, y, z);
+      const surface =
+        Math.sqrt(Math.max(0, bandOuterR * bandOuterR - x * x)) - (bandOuterR + bandSeatDepth);
+      // Centred one tube-radius up, so the underside of the rail rests on the
+      // metal rather than being buried half inside it.
+      return new Vector3(x, surface + tube, z);
+    });
     const curve = new CatmullRomCurve3(points, true, "catmullrom", 0.05);
     return new TubeGeometry(curve, 128, tube, 10, true);
-  }, [cut, radius, scale, y, tube]);
+  }, [cut, radius, scale, y, tube, bandOuterR, bandSeatDepth]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
   return (
@@ -296,15 +321,18 @@ function Claws({
           </group>
         );
       })}
-      {/* Gallery rail, low in the basket. Higher up it left the shafts sticking
-          out below it like legs under a table. */}
+      {/* Gallery rail, laid along the band at the same radius the shafts stand
+          on, so the basket closes where the claws land instead of hovering
+          somewhere above them. */}
       <Rail
         cut={cut}
         radius={radius}
-        scale={0.9}
-        y={-seatDepth * 0.82}
+        scale={1.02}
+        y={-seatDepth}
         tube={radius * 0.075}
         metal={metal}
+        bandOuterR={outerR}
+        bandSeatDepth={seatDepth}
       />
     </group>
   );
