@@ -4,6 +4,7 @@ import {
   describeBand,
   type Cut,
   type Metal,
+  type Stone,
   type Profile,
   type StoneType,
 } from "./design";
@@ -245,14 +246,16 @@ export const coreTools: ModelContextTool[] = [
           return fail(`"${field}" must be a number.`);
       }
 
-      const patch = {
-        id: typeof i.id === "string" ? i.id : undefined,
-        type: i.type as StoneType | undefined,
-        cut: i.cut as Cut | undefined,
-        sizeMm: i.sizeMm as number | undefined,
-        x: i.x as number | undefined,
-        y: i.y as number | undefined,
-      };
+      // Only the keys actually supplied. The store merges this over the
+      // existing stone with a spread, so an explicit `type: undefined` would
+      // erase the stone's material rather than leave it alone.
+      const patch: Partial<Stone> & { id?: string } = {};
+      if (typeof i.id === "string") patch.id = i.id;
+      if (i.type !== undefined) patch.type = i.type as StoneType;
+      if (i.cut !== undefined) patch.cut = i.cut as Cut;
+      if (i.sizeMm !== undefined) patch.sizeMm = i.sizeMm as number;
+      if (i.x !== undefined) patch.x = i.x as number;
+      if (i.y !== undefined) patch.y = i.y as number;
       const existed = patch.id ? currentDesign().stones.some((s) => s.id === patch.id) : false;
       const stone = useDesign.getState().placeStone(patch);
       const action = existed ? "Moved/restyled" : "Added";

@@ -157,14 +157,17 @@ function stepOctagon(hw: number, hh: number, cut: number, scale: number, y: numb
 function stepCutFacets(hw: number, hh: number): Facet[] {
   const cut = 0.26 * Math.min(hw, hh);
   const gh = 0.03;
+  // Bottom to top. The first ring is the KEEL and must be the smallest — giving
+  // it the girdle's full width flares a second, upside-down stone out below the
+  // real one, which is exactly what it looks like.
   const rings = [
-    { s: 1.0, y: -gh - 0.62 }, // pavilion keel
+    { s: 0.26, y: -gh - 0.62 }, // keel
     { s: 0.62, y: -gh - 0.34 },
-    { s: 1.0, y: -gh },        // girdle bottom
-    { s: 1.0, y: gh },         // girdle top
+    { s: 1.0, y: -gh },         // girdle bottom
+    { s: 1.0, y: gh },          // girdle top
     { s: 0.84, y: gh + 0.11 },
     { s: 0.68, y: gh + 0.2 },
-    { s: 0.5, y: gh + 0.27 },  // table
+    { s: 0.5, y: gh + 0.27 },   // table
   ].map((r) => stepOctagon(hw, hh, cut, r.s, r.y));
 
   const facets: Facet[] = [];
@@ -380,6 +383,103 @@ export function cutFootprint(cut: GemCut): [number, number] {
   if (cut === "oval") return [0.72, 1];
   if (cut === "emerald") return [0.68, 1];
   return [1, 1];
+}
+
+/**
+ * Where the four claws sit, ON the girdle outline.
+ *
+ * Placing them at fixed polar angles works for a circle and fails for every
+ * other cut: an emerald's outline at 45deg is well inside its corner, so the
+ * claws end up buried in the stone rather than gripping its edge. These are
+ * derived from the outline itself — the midpoints of the corner facets for the
+ * fancy cuts, which is where a setter actually puts them.
+ */
+export function clawAnchors(cut: GemCut, radius: number): Array<[number, number]> {
+  if (cut === "princess") {
+    return girdleOutline(cut, radius).map((p) => [p.x, p.y] as [number, number]);
+  }
+  if (cut === "emerald") {
+    const rim = girdleOutline(cut, radius);
+    // The cut corners are the short edges: 1->2, 3->4, 5->6, 7->0.
+    return [1, 3, 5, 7].map((i) => {
+      const a = rim[i];
+      const b = rim[(i + 1) % rim.length];
+      return [(a.x + b.x) / 2, (a.y + b.y) / 2] as [number, number];
+    });
+  }
+  const [fx, fz] = cutFootprint(cut);
+  return [42, 138, 222, 318].map((deg) => {
+    const a = deg * RAD;
+    return [Math.sin(a) * radius * fx, Math.cos(a) * radius * fz] as [number, number];
+  });
+}
+
+/**
+ * The girdle outline resampled to `count` evenly spaced points.
+ *
+ * A halo follows the stone it surrounds — a round halo around an emerald cut
+ * reads as a mistake — so the melee positions come from the cut's own rim
+ * walked at equal arc length, not from a circle.
+ */
+export function outlineRing(cut: GemCut, radius: number, count: number): Array<[number, number]> {
+  const rim = girdleOutline(cut, radius);
+  const n = rim.length;
+
+  const segment: number[] = [];
+  let perimeter = 0;
+  for (let i = 0; i < n; i++) {
+    const d = rim[i].distanceTo(rim[(i + 1) % n]);
+    segment.push(d);
+    perimeter += d;
+  }
+
+  const out: Array<[number, number]> = [];
+  for (let k = 0; k < count; k++) {
+    let target = (k / count) * perimeter;
+    let i = 0;
+    while (target > segment[i]) {
+      target -= segment[i];
+      i = (i + 1) % n;
+    }
+    const a = rim[i];
+    const b = rim[(i + 1) % n];
+    const t = segment[i] === 0 ? 0 : target / segment[i];
+    out.push([a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t]);
+  }
+  return out;
+}
+
+/**
+ * A skirt lofted between two scaled copies of the girdle outline.
+ *
+ * Used for the under-bezel, which has to run from the bezel wall down to the
+ * band's surface and follow the stone's shape the whole way. A cone cannot do
+ * that: it is round whatever the cut, and its apex extends past wherever the
+ * band happens to be, so a larger stone drives it straight through the shank.
+ */
+export function loftedSkirt(
+  cut: GemCut,
+  radius: number,
+  topScale: number,
+  topY: number,
+  bottomScale: number,
+  bottomY: number,
+): BufferGeometry {
+  const top = girdleOutline(cut, radius * topScale);
+  const bottom = girdleOutline(cut, radius * bottomScale);
+  const n = top.length;
+
+  const facets: Facet[] = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    facets.push([
+      new Vector3(top[i].x, topY, top[i].y),
+      new Vector3(top[j].x, topY, top[j].y),
+      new Vector3(bottom[j].x, bottomY, bottom[j].y),
+      new Vector3(bottom[i].x, bottomY, bottom[i].y),
+    ]);
+  }
+  return facetGeometry(facets);
 }
 
 /** The girdle outline as a closed 2D rim, for building bezels and collars. */

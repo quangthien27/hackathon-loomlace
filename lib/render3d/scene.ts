@@ -28,9 +28,9 @@
  */
 
 import { Quaternion, Vector3 } from "three";
-import { clamp, type DesignState, type Stone, type View } from "../design";
-import { INNER_RADIUS_MM, stoneAngle } from "../render/contract";
-import { pavilionDepth, type GemCut } from "./geometry";
+import type { DesignState, Stone, View } from "../design";
+import { INNER_RADIUS_MM, STONE_ARC_DEG, stoneAngle } from "../render/contract";
+import { cutFootprint, outlineRing, pavilionDepth, type GemCut } from "./geometry";
 
 export type BandDims = {
   innerR: number;
@@ -56,12 +56,22 @@ export type Placement = {
   axial: number;
   /** Gem radius (half its stated size). */
   radius: number;
+  /**
+   * Distance from the girdle plane DOWN to the band's outer surface, in mm.
+   *
+   * Every part of a setting is built to span this. Without it each piece is
+   * positioned at some fixed multiple of the stone's radius and the band is
+   * wherever it happens to be — which is why the stone floated above the shank,
+   * the claws stopped in mid-air, and a big enough bezel drove its cone
+   * straight through the ring.
+   */
+  seatDepth: number;
 };
 
 /**
- * Where a stone sits. The seat is solved from the gem's own pavilion depth so
- * the culet clears the band by a constant gap whatever the cut — which is what
- * a setter actually does, and why a deep princess sits higher than an emerald.
+ * Where a stone sits. The seat is solved from the gem's own pavilion depth, so
+ * a deep princess automatically rides higher in its claws than a shallow
+ * emerald — which is what a setter would do.
  */
 export function placeStone(design: DesignState, stone: Stone, isCentre: boolean): Placement {
   const { outerR, width } = bandDims(design);
@@ -69,12 +79,19 @@ export function placeStone(design: DesignState, stone: Stone, isCentre: boolean)
   const cut = stone.cut as GemCut;
   const drop = pavilionDepth(cut) * radius;
 
-  // A bezel swallows the pavilion; claws hold it clear of the metal.
-  const seated = isCentre && design.setting === "bezel" ? drop * 0.55 : drop + 0.3;
+  // Slightly LESS than the pavilion is deep, so the culet is just buried in the
+  // metal rather than hovering over it. Proportional to the stone, so it holds
+  // at every size. A bezel swallows more of the pavilion still.
+  // One rule for every setting. A bezel used to recess the stone much further,
+  // which looked right until a big stone pushed the culet clean through the
+  // band's inner wall. Sitting every cut just under the surface cannot do that.
+  void isCentre;
+  const seated = drop * 0.94;
 
   return {
     angle: stoneAngle(stone.x),
     radial: outerR + seated,
+    seatDepth: seated,
     // The FULL band width, not a fraction of it. Squeezing the range made `y`
     // a parameter the agent could set and nobody could see; a stone that can
     // actually reach the band's edge is at least a real design move, and on a
@@ -86,31 +103,78 @@ export function placeStone(design: DesignState, stone: Stone, isCentre: boolean)
 
 /* ─────────────────────────────── melee ─────────────────────────────── */
 
-/** Halo: a close ring of small stones around the centre, in its girdle plane. */
-export function haloRing(centreRadius: number, count = 16) {
-  const r = centreRadius * 1.3;
-  const size = centreRadius * 0.21;
-  return Array.from({ length: count }, (_, i) => {
-    const a = (i / count) * Math.PI * 2;
-    return { key: `halo-${i}`, x: Math.sin(a) * r, z: Math.cos(a) * r, radius: size, angle: a };
-  });
+/**
+ * Halo: a close ring of melee following the CENTRE STONE'S OWN OUTLINE.
+ *
+ * A halo is cut to echo the stone it frames — a circle of melee around an
+ * emerald cut reads as a mistake, because the gap between stone and halo would
+ * pinch at the corners and yawn at the sides. Walking the real outline keeps
+ * that gap constant, which is the whole visual point of a halo.
+ */
+export function haloRing(cut: GemCut, centreRadius: number, count = 16) {
+  const size = centreRadius * 0.2;
+  // Far enough out to clear the girdle and leave a bead's width of metal.
+  const scale = 1 + (size * 1.7) / centreRadius;
+  return outlineRing(cut, centreRadius * scale, count).map(([x, z], i) => ({
+    key: `halo-${i}`,
+    x,
+    z,
+    radius: size,
+    angle: Math.atan2(x, z),
+  }));
 }
 
-/** Pave: melee running along the band's shoulders, away from the centre stone. */
+/** The halo's metal rail, as a closed path through the melee centres. */
+export function haloRailPath(cut: GemCut, centreRadius: number, count = 48) {
+  const size = centreRadius * 0.2;
+  const scale = 1 + (size * 1.7) / centreRadius;
+  return outlineRing(cut, centreRadius * scale, count);
+}
+
+/**
+ * Pave: melee along the band's shoulders, spaced by arithmetic rather than by a
+ * fixed step.
+ *
+ * Two separate constraints, and solving only one leaves the other broken. The
+ * gap between neighbours has to come from the melee's own diameter, or they
+ * overlap the moment the stone grows; and the first melee has to clear the
+ * centre stone's GIRDLE — not its centre — or a large centre swallows the inner
+ * pair whatever the step is. Both are computed as arc lengths at the band's
+ * radius and then converted into x, which is what makes them hold at any size.
+ */
 export function paveRun(design: DesignState, centre: Stone) {
-  const { outerR } = bandDims(design);
-  const sizeMm = Math.max(1.3, centre.sizeMm * 0.23);
+  const { outerR, width } = bandDims(design);
+
+  // Small enough to sit on the band, and never wider than the band can carry.
+  const sizeMm = Math.min(Math.max(1.3, centre.sizeMm * 0.22), width * 0.72);
   const radius = sizeMm / 2;
-  return [-3, -2, -1, 1, 2, 3].map((k) => {
-    const x = clamp(centre.x + k * 0.09, 0, 1);
-    return {
-      key: `pave-${k}`,
-      angle: stoneAngle(x),
-      // Set INTO the metal: the girdle sits just proud of the band's surface.
-      radial: outerR + radius * 0.34,
-      axial: (centre.y - 0.5) * design.band.widthMm,
-      radius,
-    };
+  const seatR = outerR + radius * 0.34;
+
+  const [fx] = cutFootprint(centre.cut as GemCut);
+  // Clear the centre stone's GIRDLE, not its centre, plus a bead of metal.
+  const clearance = (centre.sizeMm / 2) * fx + radius * 1.45;
+  const step = sizeMm * 1.12;
+
+  /** Arc length at the seat radius, expressed in the 0..1 x coordinate. */
+  const arcToX = (arc: number) => ((arc / seatR) * (180 / Math.PI)) / STONE_ARC_DEG;
+
+  return [-3, -2, -1, 1, 2, 3].flatMap((k) => {
+    const side = Math.sign(k);
+    const rank = Math.abs(k) - 1;
+    const x = centre.x + side * arcToX(clearance + rank * step);
+    // Once a stone would run past the end of the band's arc there is nowhere
+    // left to put it; drop it rather than pile it on the last position.
+    if (x <= 0 || x >= 1) return [];
+    return [
+      {
+        key: `pave-${k}`,
+        angle: stoneAngle(x),
+        // Set INTO the metal: the girdle sits just proud of the band's surface.
+        radial: seatR,
+        axial: (centre.y - 0.5) * width,
+        radius,
+      },
+    ];
   });
 }
 

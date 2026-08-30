@@ -2,14 +2,26 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { BackSide, ExtrudeGeometry, type Group, LatheGeometry, Shape, type Texture, Vector3 } from "three";
+import {
+  BackSide,
+  CatmullRomCurve3,
+  ExtrudeGeometry,
+  type Group,
+  LatheGeometry,
+  Shape,
+  type Texture,
+  TubeGeometry,
+  Vector3,
+} from "three";
 import { centreStone, type DesignState, type Metal, type Stone, type StoneType } from "@/lib/design";
 import {
   bandProfile,
-  cutFootprint,
+  clawAnchors,
   gemDepth,
   gemGeometry,
   girdleOutline,
+  loftedSkirt,
+  outlineRing,
   pavilionDepth,
   type GemCut,
 } from "@/lib/render3d/geometry";
@@ -186,109 +198,175 @@ function MetalMat({ metal, roughnessBoost = 0 }: { metal: Metal; roughnessBoost?
   );
 }
 
-/** Claw angles. Fancy cuts are held at their corners; round stones are not. */
-function clawAngles(cut: GemCut): number[] {
-  return cut === "princess" || cut === "emerald" ? [45, 135, 225, 315] : [42, 138, 222, 318];
+/**
+ * A metal rail following the stone's outline, at a given height.
+ *
+ * A torus would only be right for a round stone. This is swept along the cut's
+ * own rim, so the gallery under a princess is square and the halo around an
+ * emerald is an emerald.
+ */
+function Rail({
+  cut,
+  radius,
+  scale,
+  y,
+  tube,
+  metal,
+}: {
+  cut: GemCut;
+  radius: number;
+  scale: number;
+  y: number;
+  tube: number;
+  metal: Metal;
+}) {
+  const geometry = useMemo(() => {
+    const points = outlineRing(cut, radius * scale, 64).map(([x, z]) => new Vector3(x, y, z));
+    const curve = new CatmullRomCurve3(points, true, "catmullrom", 0.05);
+    return new TubeGeometry(curve, 128, tube, 10, true);
+  }, [cut, radius, scale, y, tube]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  return (
+    <mesh geometry={geometry}>
+      <MetalMat metal={metal} />
+    </mesh>
+  );
 }
 
 /**
- * Four claws. Each is a tapered shaft rising alongside the girdle with a bead
- * folded over the crown — the bead is what actually retains the stone, and
- * leaving it off is why untextured 3D settings read as flat metal tabs.
+ * Four claws, each running from a bead folded over the crown all the way DOWN
+ * to the band.
+ *
+ * `seatDepth` is what makes that possible: without it the shafts were a fixed
+ * multiple of the stone's radius and simply stopped in mid-air above the shank,
+ * which is what made the whole setting look like it was hovering.
  */
-function Claws({ cut, radius, metal }: { cut: GemCut; radius: number; metal: Metal }) {
-  const [fx, fz] = cutFootprint(cut);
-  // The shaft stops just under the table and the bead does the rest. Longer
-  // posts read as scaffolding, especially at an oblique angle where the stone
-  // foreshortens but the claws do not.
-  const shaftH = radius * 0.78;
+function Claws({
+  cut,
+  radius,
+  metal,
+  seatDepth,
+}: {
+  cut: GemCut;
+  radius: number;
+  metal: Metal;
+  seatDepth: number;
+}) {
+  const beadY = radius * 0.26;
+  const footY = -seatDepth;
+  const shaftH = beadY - footY;
 
   return (
     <group>
-      {clawAngles(cut).map((deg) => {
-        const a = (deg * Math.PI) / 180;
-        const x = Math.sin(a) * radius * fx;
-        const z = Math.cos(a) * radius * fz;
+      {clawAnchors(cut, radius).map(([x, z], i) => (
+        <group key={i}>
+          <mesh position={[x * 1.02, (beadY + footY) / 2, z * 1.02]}>
+            <cylinderGeometry args={[radius * 0.085, radius * 0.15, shaftH, 12]} />
+            <MetalMat metal={metal} />
+          </mesh>
+          {/* The bead sits just inboard of the shaft, folded over the crown —
+              pulling it much further in reads as a stud floating on the table. */}
+          <mesh position={[x * 0.94, beadY, z * 0.94]} scale={[1, 0.74, 1]}>
+            <sphereGeometry args={[radius * 0.125, 20, 16]} />
+            <MetalMat metal={metal} />
+          </mesh>
+        </group>
+      ))}
+      {/* Gallery rail, halfway down the seat: it closes the basket and ties the
+          four claws together instead of leaving them as separate posts. */}
+      <Rail cut={cut} radius={radius} scale={0.86} y={-seatDepth * 0.55} tube={radius * 0.07} metal={metal} />
+    </group>
+  );
+}
+
+/** A wall of metal around the girdle, on a skirt that reaches the band. */
+function Bezel({
+  cut,
+  radius,
+  metal,
+  seatDepth,
+}: {
+  cut: GemCut;
+  radius: number;
+  metal: Metal;
+  seatDepth: number;
+}) {
+  const wallTop = radius * 0.24;
+  const wallBottom = -radius * 0.3;
+
+  const wall = useMemo(() => {
+    const outer = new Shape(girdleOutline(cut, radius * 1.13));
+    outer.holes.push(new Shape(girdleOutline(cut, radius * 1.0)));
+    const g = new ExtrudeGeometry(outer, {
+      depth: wallTop - wallBottom,
+      bevelEnabled: false,
+      curveSegments: 24,
+    });
+    // Authored in the girdle plane, so stand it up and straddle the girdle.
+    g.rotateX(-Math.PI / 2);
+    g.translate(0, wallTop, 0);
+    return g;
+  }, [cut, radius, wallTop, wallBottom]);
+  useEffect(() => () => wall.dispose(), [wall]);
+
+  // The under-bezel runs from the wall to the band and follows the cut the
+  // whole way. It replaces a cone, which was round whatever the stone was and
+  // whose apex went straight through the shank once the stone got big.
+  const skirt = useMemo(
+    () => loftedSkirt(cut, radius, 1.13, wallBottom, 0.66, -seatDepth),
+    [cut, radius, wallBottom, seatDepth],
+  );
+  useEffect(() => () => skirt.dispose(), [skirt]);
+
+  return (
+    <group>
+      <mesh geometry={wall}>
+        <MetalMat metal={metal} />
+      </mesh>
+      <mesh geometry={skirt}>
+        <MetalMat metal={metal} roughnessBoost={0.05} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Halo: melee following the centre stone's outline, on a rail, with bead prongs. */
+function Halo({
+  cut,
+  radius,
+  metal,
+  seatDepth,
+  env,
+}: {
+  cut: GemCut;
+  radius: number;
+  metal: Metal;
+  seatDepth: number;
+  env: Texture | null;
+}) {
+  const ring = haloRing(cut, radius);
+  const scale = ring.length ? Math.hypot(ring[0].x, ring[0].z) / radius : 1.3;
+
+  return (
+    <group>
+      <Rail cut={cut} radius={radius} scale={scale} y={-radius * 0.02} tube={radius * 0.12} metal={metal} />
+      {ring.map((s, i) => {
+        const next = ring[(i + 1) % ring.length];
         return (
-          <group key={deg}>
-            <mesh position={[x * 1.02, -radius * 0.2, z * 1.02]}>
-              <cylinderGeometry args={[radius * 0.085, radius * 0.16, shaftH, 12]} />
-              <MetalMat metal={metal} />
-            </mesh>
-            {/* Bead, pulled inboard so it sits ON the crown rather than beside it. */}
-            <mesh position={[x * 0.84, radius * 0.24, z * 0.84]} scale={[1, 0.72, 1]}>
-              <sphereGeometry args={[radius * 0.125, 20, 16]} />
+          <group key={s.key}>
+            <group position={[s.x, radius * 0.1, s.z]}>
+              <Melee radius={s.radius} env={env} />
+            </group>
+            {/* One bead in the gap between each neighbouring pair. */}
+            <mesh position={[(s.x + next.x) / 2, radius * 0.15, (s.z + next.z) / 2]}>
+              <sphereGeometry args={[radius * 0.05, 10, 8]} />
               <MetalMat metal={metal} />
             </mesh>
           </group>
         );
       })}
-      {/* Gallery rail under the girdle: closes the setting off from below. */}
-      <mesh position={[0, -radius * 0.52, 0]} rotation-x={Math.PI / 2} scale={[fx, fz, 1]}>
-        <torusGeometry args={[radius * 0.82, radius * 0.07, 12, 48]} />
-        <MetalMat metal={metal} />
-      </mesh>
-    </group>
-  );
-}
-
-/** A wall of metal following the girdle outline. */
-function Bezel({ cut, radius, metal }: { cut: GemCut; radius: number; metal: Metal }) {
-  const geometry = useMemo(() => {
-    const outer = new Shape(girdleOutline(cut, radius * 1.13));
-    outer.holes.push(new Shape(girdleOutline(cut, radius * 1.0)));
-    const depth = radius * 0.72;
-    const g = new ExtrudeGeometry(outer, { depth, bevelEnabled: false, curveSegments: 24 });
-    // The shape is authored in the girdle plane, so stand it up and straddle the girdle.
-    g.rotateX(-Math.PI / 2);
-    g.translate(0, radius * 0.22, 0);
-    return g;
-  }, [cut, radius]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
-
-  return (
-    <group>
-      <mesh geometry={geometry}>
-        <MetalMat metal={metal} />
-      </mesh>
-      {/* Collar below, so the bezel does not float on nothing in the side view. */}
-      <mesh position={[0, -radius * 0.62, 0]} rotation-x={Math.PI} scale={[1, 1, 1]}>
-        <coneGeometry args={[radius * 1.02, radius * 0.7, 32, 1, true]} />
-        <MetalMat metal={metal} roughnessBoost={0.06} />
-      </mesh>
-    </group>
-  );
-}
-
-/** Halo: a close ring of melee on a metal rail, with bead prongs in the gaps. */
-function Halo({ cut, radius, metal, env }: { cut: GemCut; radius: number; metal: Metal; env: Texture | null }) {
-  const ring = haloRing(radius);
-  return (
-    <group position={[0, -radius * 0.05, 0]}>
-      <mesh rotation-x={Math.PI / 2}>
-        <torusGeometry args={[radius * 1.3, radius * 0.13, 14, 64]} />
-        <MetalMat metal={metal} />
-      </mesh>
-      {ring.map((s, i) => (
-        <group key={s.key}>
-          <group position={[s.x, radius * 0.11, s.z]}>
-            <Melee radius={s.radius} env={env} />
-          </group>
-          {/* One bead between each neighbouring pair. */}
-          <mesh
-            position={[
-              Math.sin(s.angle + Math.PI / ring.length) * radius * 1.3,
-              radius * 0.16,
-              Math.cos(s.angle + Math.PI / ring.length) * radius * 1.3,
-            ]}
-          >
-            <sphereGeometry args={[radius * 0.055, 10, 8]} />
-            <MetalMat metal={metal} />
-          </mesh>
-          {i === 0 ? null : null}
-        </group>
-      ))}
-      <Claws cut={cut} radius={radius} metal={metal} />
+      <Claws cut={cut} radius={radius} metal={metal} seatDepth={seatDepth} />
     </group>
   );
 }
@@ -379,17 +457,20 @@ export function Ring3D({
               }}
               onPointerUp={() => onDragChange(false)}
             >
-              {isCentre && design.setting === "solitaire" && (
-                <Claws cut={cut} radius={p.radius} metal={design.band.metal} />
-              )}
-              {isCentre && design.setting === "pave" && (
-                <Claws cut={cut} radius={p.radius} metal={design.band.metal} />
+              {isCentre && (design.setting === "solitaire" || design.setting === "pave") && (
+                <Claws cut={cut} radius={p.radius} metal={design.band.metal} seatDepth={p.seatDepth} />
               )}
               {isCentre && design.setting === "bezel" && (
-                <Bezel cut={cut} radius={p.radius} metal={design.band.metal} />
+                <Bezel cut={cut} radius={p.radius} metal={design.band.metal} seatDepth={p.seatDepth} />
               )}
               {isCentre && design.setting === "halo" && (
-                <Halo cut={cut} radius={p.radius} metal={design.band.metal} env={gemEnv} />
+                <Halo
+                  cut={cut}
+                  radius={p.radius}
+                  metal={design.band.metal}
+                  seatDepth={p.seatDepth}
+                  env={gemEnv}
+                />
               )}
               <Gem cut={cut} type={stone.type} radius={p.radius} mode={mode} env={gemEnv} />
               {isCentre && <CentreProbe />}
