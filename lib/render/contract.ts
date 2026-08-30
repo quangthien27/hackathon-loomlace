@@ -51,8 +51,34 @@ export const CENTER = { x: 500, y: 500 } as const;
 /** User units per real millimetre. */
 export const UNITS_PER_MM = 26;
 
-/** Inner radius of a UK size-M band, in mm. */
-export const INNER_RADIUS_MM = 8.75;
+/**
+ * Inner radius of the band, in mm, for a UK ring size.
+ *
+ * The British scale is linear in CIRCUMFERENCE: size A measures 37.8mm around
+ * the inside, and every half size adds 0.6477mm (so a full letter adds
+ * 1.2954mm). That makes this one multiply rather than a 51-row lookup table,
+ * and it covers the half sizes for free.
+ *
+ * This used to be a single constant, and ring size was consequently a label
+ * rather than a dimension — the dropdown ran F to Z, a span where the largest
+ * size has a ~57% bigger radius than the smallest, and every one of them drew
+ * exactly the same ring. `set_size` reported success and nothing moved.
+ *
+ * Sizes arrive as free text (the agent can pass anything), so anything
+ * unparseable falls back to M rather than producing NaN geometry. Both
+ * renderers and lib/price.ts read this one function, so a size change moves the
+ * mesh, the SVG and the metal cost together or not at all.
+ */
+const A_CIRCUMFERENCE_MM = 37.8;
+const HALF_SIZE_STEP_MM = 0.6477;
+/** Half-steps from A to M, the fallback size. */
+const M_STEPS = 24;
+
+export function ukSizeRadius(sizeUk: string): number {
+  const m = /^([A-Z])(½)?$/.exec(String(sizeUk ?? "").trim().toUpperCase());
+  const steps = m ? (m[1].charCodeAt(0) - 65) * 2 + (m[2] ? 1 : 0) : M_STEPS;
+  return (A_CIRCUMFERENCE_MM + steps * HALF_SIZE_STEP_MM) / (2 * Math.PI);
+}
 
 /** Stone art is drawn centred on (0,0), inscribed in a circle of this radius. */
 export const STONE_UNIT_R = 100;
@@ -71,7 +97,7 @@ export const mm = (v: number) => v * UNITS_PER_MM;
 export type BandRadii = { innerR: number; outerR: number; midR: number; widthU: number };
 
 export function bandRadii(design: DesignState): BandRadii {
-  const innerR = mm(INNER_RADIUS_MM);
+  const innerR = mm(ukSizeRadius(design.sizeUk));
   const widthU = mm(design.band.widthMm);
   return { innerR, outerR: innerR + widthU, midR: innerR + widthU / 2, widthU };
 }

@@ -28,9 +28,10 @@
  */
 
 import { Quaternion, Vector3 } from "three";
+import { centreStone } from "../design";
 import type { DesignState, Stone, View } from "../design";
-import { INNER_RADIUS_MM, STONE_ARC_DEG, stoneAngle } from "../render/contract";
-import { cutFootprint, outlineRing, pavilionDepth, type GemCut } from "./geometry";
+import { STONE_ARC_DEG, stoneAngle, ukSizeRadius } from "../render/contract";
+import { cutFootprint, gemDepth, outlineRing, pavilionDepth, type GemCut } from "./geometry";
 
 export type BandDims = {
   innerR: number;
@@ -44,7 +45,8 @@ export type BandDims = {
 export function bandDims(design: DesignState): BandDims {
   const width = design.band.widthMm;
   const thickness = 1.2 + width * 0.15;
-  return { innerR: INNER_RADIUS_MM, outerR: INNER_RADIUS_MM + thickness, thickness, width };
+  const innerR = ukSizeRadius(design.sizeUk);
+  return { innerR, outerR: innerR + thickness, thickness, width };
 }
 
 export type Placement = {
@@ -200,6 +202,20 @@ export type ViewConfig = {
   fov: number;
   /** Orientation of the ring itself; some shots need the ring turned, not the camera. */
   quaternion: Quaternion;
+  /**
+   * Where to aim, as a fraction of the ring's own vertical extent measured up
+   * from the bottom of the shank. Absolute millimetres cannot work now that the
+   * ring has a real size: a value tuned on a size M aims too low on a size Z,
+   * and the extra radius runs off the bottom of the frame.
+   */
+  aim?: number;
+  /**
+   * Whether the camera pulls back with the ring. Only the engraving close-up
+   * does — there the subject is the text, and it has to stay the same size on
+   * screen whatever finger it is wrapped around. The two hero views hold their
+   * distance so that a bigger size actually looks bigger.
+   */
+  follows?: boolean;
 };
 
 /**
@@ -234,9 +250,17 @@ export const VIEWS: Record<View, ViewConfig> = {
   // put the shank in the middle of the frame and left the stone drifting near
   // the top edge — correct framing for a photograph of a hoop, wrong one for a
   // photograph of a gem. The camera comes in a little with it.
-  top: { camera: [0, 44, 47], target: [0, 8, 0], fov: 28, quaternion: turned(38) },
+  //
+  // Framed for the LARGEST size on offer, not the default one. The camera is
+  // fixed in millimetres so that a size Z ring — a third more radius than a
+  // size M — genuinely fills more of the frame than a size F. That only works
+  // if there is room for it: at the old distance the default size already came
+  // within a few percent of the edges, and a size Z ran clean off the bottom.
+  // The default now sits with air around it, which is the better photograph
+  // anyway.
+  top: { camera: [0, 58, 62], target: [0, 8, 0], fov: 28, aim: 0.75, quaternion: turned(38) },
   // Dead-on profile: the shot that sells how high the stone sits.
-  side: { camera: [0, 4.5, 67], target: [0, 4.5, 0], fov: 28, quaternion: STANDING },
+  side: { camera: [0, 6, 88], target: [0, 4.5, 0], fov: 28, aim: 0.6, quaternion: STANDING },
   // Turned almost side-on so the bore opens towards the camera and the far
   // inner wall — where an engraving would go — faces you.
   // A CLOSE-UP, not a whole-ring shot. The bore is only as deep as the band is
@@ -244,5 +268,54 @@ export const VIEWS: Record<View, ViewConfig> = {
   // angle. The SVG could unroll the band into a flat strip; 3D cannot, so the
   // only way to make an engraving legible is to tip the shank away and move in
   // on it. Framing the whole ring here would render the text three pixels tall.
-  inside: { camera: [0, 14, 30], target: [0, -6, -6], fov: 22, quaternion: leaned(45) },
+  inside: {
+    camera: [0, 14, 30],
+    target: [0, -6, -6],
+    fov: 22,
+    follows: true,
+    quaternion: leaned(45),
+  },
 };
+
+/** Reference finger the absolute numbers above were tuned against. */
+const REFERENCE_RADIUS = ukSizeRadius("M");
+
+/**
+ * How tall the ring stands, bottom of the shank to top of the centre stone.
+ *
+ * The two halves scale differently — the shank grows with the finger, the crown
+ * with the stone — so this cannot be a multiple of either one alone.
+ */
+function ringExtent(design: DesignState): { bottom: number; top: number } {
+  const { outerR } = bandDims(design);
+  const stone = centreStone(design);
+  if (!stone) return { bottom: -outerR, top: outerR };
+  const { radial, radius } = placeStone(design, stone, true);
+  const cut = stone.cut as GemCut;
+  const crown = (gemDepth(cut) - pavilionDepth(cut)) * radius;
+  return { bottom: -outerR, top: radial + crown };
+}
+
+/**
+ * The camera for a view, solved against the ring actually in front of it.
+ *
+ * Ring size used to be a label rather than a dimension, so every shot could be
+ * hard-coded. Now that the band's radius follows the size, a fixed aim point
+ * tuned on a size M sits too low on a size Z and the shank falls out of frame.
+ */
+export function viewFor(design: DesignState): ViewConfig {
+  const cfg = VIEWS[design.view];
+
+  if (cfg.follows) {
+    const k = ukSizeRadius(design.sizeUk) / REFERENCE_RADIUS;
+    return {
+      ...cfg,
+      camera: [cfg.camera[0] * k, cfg.camera[1] * k, cfg.camera[2] * k],
+      target: [cfg.target[0] * k, cfg.target[1] * k, cfg.target[2] * k],
+    };
+  }
+
+  if (cfg.aim === undefined) return cfg;
+  const { bottom, top } = ringExtent(design);
+  return { ...cfg, target: [cfg.target[0], bottom + cfg.aim * (top - bottom), cfg.target[2]] };
+}

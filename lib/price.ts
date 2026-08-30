@@ -10,6 +10,7 @@
 
 import { centreStone } from "./design";
 import type { Cut, DesignState, Metal, Setting, Stone, StoneType } from "./design";
+import { ukSizeRadius } from "./render/contract";
 
 export type PriceLine = { label: string; detail: string; pence: number };
 export type PriceEstimate = {
@@ -23,9 +24,6 @@ export type PriceEstimate = {
 // ---------------------------------------------------------------------------
 // Metal
 // ---------------------------------------------------------------------------
-
-/** Inner radius of the band in mm — a UK size M finger, matching the renderer. */
-export const BAND_INNER_RADIUS_MM = 8.75;
 
 /**
  * Radial thickness of the band cross-section (mm), by profile. Court domes
@@ -59,16 +57,24 @@ export const METAL_RATE_PENCE_PER_GRAM: Record<Metal, number> = {
  * Approximate metal volume as a thin annulus swept around the mean radius of
  * the band: volume = width × depth × circumference-at-mean-radius. This is
  * the same rectangle-cross-section model the renderer uses for the band mesh.
+ *
+ * Takes the whole design rather than just the band, because the finger it has
+ * to go around is the other half of the sum. This used to read a fixed size-M
+ * radius, which meant a size Z band — about half as much gold again as a size
+ * F — was quoted at exactly the same price. An estimate presented as itemised
+ * and derived has to actually be derived.
  */
-export function bandVolumeMm3(band: DesignState["band"]): number {
+export function bandVolumeMm3(design: DesignState): number {
+  const { band } = design;
   const depth = PROFILE_DEPTH_MM[band.profile];
-  const meanRadius = BAND_INNER_RADIUS_MM + depth / 2;
+  const meanRadius = ukSizeRadius(design.sizeUk) + depth / 2;
   const circumference = 2 * Math.PI * meanRadius;
   return band.widthMm * depth * circumference;
 }
 
-function priceMetal(band: DesignState["band"]): PriceLine {
-  const volumeMm3 = bandVolumeMm3(band);
+function priceMetal(design: DesignState): PriceLine {
+  const { band } = design;
+  const volumeMm3 = bandVolumeMm3(design);
   const grams = volumeMm3 * METAL_DENSITY_G_PER_MM3[band.metal];
   const pence = Math.round(grams * METAL_RATE_PENCE_PER_GRAM[band.metal]);
   return {
@@ -190,7 +196,7 @@ function priceEngraving(design: DesignState): PriceLine | null {
 // ---------------------------------------------------------------------------
 
 export function estimatePrice(design: DesignState): PriceEstimate {
-  const lines: PriceLine[] = [priceMetal(design.band)];
+  const lines: PriceLine[] = [priceMetal(design)];
 
   for (const stone of design.stones) {
     lines.push(priceStone(stone));

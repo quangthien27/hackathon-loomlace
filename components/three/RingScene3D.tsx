@@ -28,7 +28,7 @@ import {
 } from "three";
 import type { DesignState } from "@/lib/design";
 import { registerStudioCapture } from "@/lib/capture";
-import { VIEWS } from "@/lib/render3d/scene";
+import { VIEWS, viewFor } from "@/lib/render3d/scene";
 import { buildBackdropTexture, buildGemEnvironment, buildStudioEnvironment } from "@/lib/render3d/studio";
 import { Ring3D, type GemMode } from "./Ring3D";
 
@@ -47,21 +47,28 @@ type Orbit = { enabled: boolean; target: Vector3; update: () => void };
  * cheapest possible call producing the biggest visual payoff — in 3D it buys a
  * camera move rather than a redrawn picture.
  */
-function ViewRig({ view, ring }: { view: DesignState["view"]; ring: React.RefObject<Group | null> }) {
+function ViewRig({ design, ring }: { design: DesignState; ring: React.RefObject<Group | null> }) {
+  const view = design.view;
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const controls = useThree((s) => s.controls) as Orbit | null;
   const flying = useRef(true);
-  const previous = useRef(view);
+  // Ring size is part of this key, not just the view: it moves the aim point,
+  // and the rig only steers while it is flying. Without it, resizing re-cut the
+  // geometry under a camera that stayed pointed where the old ring used to be.
+  const shot = `${view}:${design.sizeUk}`;
+  const previous = useRef(shot);
 
   useEffect(() => {
-    if (previous.current !== view) {
-      previous.current = view;
+    if (previous.current !== shot) {
+      previous.current = shot;
       flying.current = true;
     }
-  }, [view]);
+  }, [shot]);
 
   useFrame((_, dt) => {
-    const cfg = VIEWS[view];
+    // Solved every frame against the current design, not looked up once: ring
+    // size moves the aim point, so a size change has to re-frame the shot.
+    const cfg = viewFor(design);
 
     // The ring turns whether or not the camera is flying, so a design change
     // mid-flight does not snap it.
@@ -304,7 +311,7 @@ export function RingScene3D({
         dampingFactor={0.09}
         target={VIEWS.top.target}
       />
-      <ViewRig view={design.view} ring={ring} />
+      <ViewRig design={design} ring={ring} />
       <FrameMeter node={fpsRef} />
       <StudioCapture />
       <Diagnostics />
