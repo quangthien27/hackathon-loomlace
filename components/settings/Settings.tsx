@@ -1,10 +1,62 @@
-import type { Metal, Setting } from "@/lib/design";
+import type { Cut, Metal, Setting } from "@/lib/design";
 import { METAL, metalGradient, STONE } from "@/lib/render/materials";
 import { STONE_UNIT_R } from "@/lib/render/contract";
 import { RoundBrilliant } from "@/components/stones/RoundBrilliant";
 import type * as React from "react";
 
-export type SettingArtProps = { setting: Setting; metal: Metal; stoneRadius: number };
+export type SettingArtProps = {
+  setting: Setting;
+  metal: Metal;
+  stoneRadius: number;
+  /** The centre stone's cut, so a bezel can follow its actual silhouette. */
+  cut: Cut;
+};
+
+/**
+ * The outline of each cut, at a given radius — mirrors the silhouettes the
+ * stone components draw (see components/stones/*). A bezel is a rim that wraps
+ * the stone, so a circle around a square princess cut reads as a gem stuck on a
+ * coin. This keeps the two in step.
+ */
+function stoneOutlinePath(cut: Cut, r: number): string {
+  const p = (xs: Array<[number, number]>) =>
+    "M " + xs.map(([x, y]) => `${x.toFixed(2)} ${y.toFixed(2)}`).join(" L ") + " Z";
+
+  if (cut === "round" || cut === "oval") {
+    const rx = cut === "oval" ? r / 1.4 : r;
+    const ry = r;
+    return (
+      `M 0 ${(-ry).toFixed(2)} ` +
+      `A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 1 0 0 ${ry.toFixed(2)} ` +
+      `A ${rx.toFixed(2)} ${ry.toFixed(2)} 0 1 0 0 ${(-ry).toFixed(2)} Z`
+    );
+  }
+
+  if (cut === "princess") {
+    const h = r * Math.SQRT1_2; // corners sit at 45deg, so the side is r/sqrt(2) from centre
+    return p([
+      [-h, -h],
+      [h, -h],
+      [h, h],
+      [-h, h],
+    ]);
+  }
+
+  // Emerald: a rectangle with cut corners, matching EmeraldCut's proportions.
+  const hw = r * 0.62;
+  const hh = r * 0.88;
+  const c = 0.26 * Math.min(hw, hh);
+  return p([
+    [-(hw - c), -hh],
+    [hw - c, -hh],
+    [hw, -(hh - c)],
+    [hw, hh - c],
+    [hw - c, hh],
+    [-(hw - c), hh],
+    [-hw, hh - c],
+    [-hw, -(hh - c)],
+  ]);
+}
 
 // See components/stones/RoundBrilliant.tsx for the shared angle/shading convention:
 // 0deg is straight up, clockwise, and the light sits up-and-left at -45deg.
@@ -28,19 +80,25 @@ function AccentDiamond({ x, y, r }: { x: number; y: number; r: number }) {
 }
 
 const CLAW_ANGLES = [45, 135, 225, 315];
-/** The bottom pair reads as nearest the viewer, so their tips draw over the stone. */
-const FRONT_CLAW_ANGLES = [135, 225];
 
 /**
- * A prong: widest at the shoulders (right at the girdle, so that width is
- * actually visible rather than hidden under the stone), tapering to a point
- * both outward (the visible tip beyond the girdle) and inward (`innerR` —
- * shallow for the front pair, which overlaps the gem; deep for the back
- * pair, which the stone's own silhouette covers regardless).
+ * The shaft of a prong: a tapered blade running from under the stone out past
+ * the girdle, widest where it meets the bead so the claw looks load-bearing.
  */
-function clawPolygon(angle: number, r: number, innerR: number): string {
-  const halfW = 9;
-  return pts([polar(angle, r * 1.2), polar(angle + halfW, r * 1.02), polar(angle, innerR), polar(angle - halfW, r * 1.02)]);
+function clawShaft(angle: number, r: number): string {
+  const w = 11;
+  return pts([
+    polar(angle - w * 0.75, r * 0.72),
+    polar(angle + w * 0.75, r * 0.72),
+    polar(angle + w, r * 1.16),
+    polar(angle - w, r * 1.16),
+  ]);
+}
+
+/** The bead that folds over the girdle and pins the stone down. */
+function clawBead(angle: number, r: number): { cx: number; cy: number; rr: number } {
+  const [cx, cy] = polar(angle, r * 1.0);
+  return { cx, cy, rr: r * 0.13 };
 }
 
 /**
@@ -48,25 +106,27 @@ function clawPolygon(angle: number, r: number, innerR: number): string {
  * Drawn centred on the origin in the same local units as the stone art, and
  * rendered BEHIND/AROUND it — see components/stones/index.tsx's contract note.
  */
-export function SettingArt({ setting, metal, stoneRadius }: SettingArtProps): React.JSX.Element | null {
+export function SettingArt({ setting, metal, stoneRadius, cut }: SettingArtProps): React.JSX.Element | null {
   const m = METAL[metal];
 
   switch (setting) {
     case "solitaire": {
+      // Prongs read as claws only if they visibly grip: a tapered shaft rising
+      // from behind the girdle, then a rounded bead that overlaps ONTO the
+      // stone (drawn in front, see SettingClawsFront). A quad that stops at the
+      // girdle just looks like four metal tabs stuck to the edge.
       return (
         <g>
           {CLAW_ANGLES.map((a) => (
             <polygon
               key={a}
-              points={clawPolygon(a, stoneRadius, stoneRadius * 0.65)}
+              points={clawShaft(a, stoneRadius)}
               fill={metalGradient(metal)}
               stroke={m.deep}
-              strokeOpacity={0.45}
+              strokeOpacity={0.4}
               strokeWidth={1.2}
             />
           ))}
-          {/* Highlight on the claw catching the light, upper-left. */}
-          <polygon points={clawPolygon(315, stoneRadius, stoneRadius * 0.65)} fill={m.highlight} fillOpacity={0.35} />
         </g>
       );
     }
@@ -116,24 +176,25 @@ export function SettingArt({ setting, metal, stoneRadius }: SettingArtProps): Re
     }
 
     case "bezel": {
-      // A solid disc, not an annulus: this component doesn't know the stone's
-      // cut, and a fixed inner hole sized for a circle leaves a gap showing
-      // through at every other outline (oval, emerald, princess all reach
-      // closer to stoneRadius on their flanks than a circle's hole would
-      // assume). Since this renders behind the stone, the stone itself always
-      // defines the visible inner edge — the disc only needs to cover it.
-      const outerR = stoneRadius * 1.16;
+      // A rim that follows the stone's own outline. It renders behind the gem,
+      // so the stone defines the inner edge and only the collar shows — which
+      // is exactly how a real bezel reads.
       return (
         <g>
-          <circle cx={0} cy={0} r={outerR} fill={metalGradient(metal)} stroke={m.deep} strokeOpacity={0.4} strokeWidth={1} />
-          {/* Highlight arc, upper-left, where the rim catches the light. */}
           <path
-            d={describeArc(0, 0, stoneRadius * 1.08, -110, -10)}
+            d={stoneOutlinePath(cut, stoneRadius * 1.18)}
+            fill={metalGradient(metal)}
+            stroke={m.deep}
+            strokeOpacity={0.45}
+            strokeWidth={1.2}
+          />
+          {/* Inner shadow where the collar meets the girdle, for depth. */}
+          <path
+            d={stoneOutlinePath(cut, stoneRadius * 1.05)}
             fill="none"
-            stroke={m.highlight}
-            strokeOpacity={0.7}
-            strokeWidth={stoneRadius * 0.09}
-            strokeLinecap="round"
+            stroke={m.deep}
+            strokeOpacity={0.35}
+            strokeWidth={stoneRadius * 0.05}
           />
         </g>
       );
@@ -145,29 +206,31 @@ export function SettingArt({ setting, metal, stoneRadius }: SettingArtProps): Re
 }
 
 /** Claws (or other metalwork) that must visually sit in front of the stone. */
-export function SettingClawsFront({ setting, metal, stoneRadius }: SettingArtProps): React.JSX.Element | null {
+/**
+ * The half of the setting that must be drawn AFTER the stone: the bead tips
+ * folding over the girdle. Without these the stone looks laid on top of the
+ * prongs rather than held by them.
+ */
+export function SettingClawsFront({
+  setting,
+  metal,
+  stoneRadius,
+}: SettingArtProps): React.JSX.Element | null {
   if (setting !== "solitaire") return null;
   const m = METAL[metal];
+
   return (
     <g>
-      {FRONT_CLAW_ANGLES.map((a) => (
-        <polygon
-          key={a}
-          points={clawPolygon(a, stoneRadius, stoneRadius * 0.85)}
-          fill={metalGradient(metal)}
-          stroke={m.deep}
-          strokeOpacity={0.5}
-          strokeWidth={1.2}
-        />
-      ))}
+      {CLAW_ANGLES.map((a) => {
+        const { cx, cy, rr } = clawBead(a, stoneRadius);
+        return (
+          <g key={a}>
+            <circle cx={cx} cy={cy} r={rr} fill={metalGradient(metal)} stroke={m.deep} strokeOpacity={0.45} strokeWidth={1} />
+            {/* Specular dot, up and to the left, matching the canvas light. */}
+            <circle cx={cx - rr * 0.32} cy={cy - rr * 0.32} r={rr * 0.34} fill={m.highlight} opacity={0.9} />
+          </g>
+        );
+      })}
     </g>
   );
-}
-
-/** Arc path (degrees, 0 = up, clockwise) for a stroked highlight band. */
-function describeArc(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
-  const [sx, sy] = polar(startDeg, r);
-  const [ex, ey] = polar(endDeg, r);
-  const large = endDeg - startDeg > 180 ? 1 : 0;
-  return `M ${(cx + sx).toFixed(2)} ${(cy + sy).toFixed(2)} A ${r} ${r} 0 ${large} 1 ${(cx + ex).toFixed(2)} ${(cy + ey).toFixed(2)}`;
 }

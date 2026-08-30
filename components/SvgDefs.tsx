@@ -52,9 +52,11 @@ export function SvgDefs() {
         );
       })}
 
+      {/* Driven by CSS variables so the ring's ground follows the viewer's
+          theme. The palette tokens are the fallback if the vars are missing. */}
       <radialGradient id="canvas-bg" cx="0.5" cy="0.38" r="0.75">
-        <stop offset="0%" stopColor={SURFACE.canvasFrom} />
-        <stop offset="100%" stopColor={SURFACE.canvasTo} />
+        <stop offset="0%" stopColor={`var(--canvas-from, ${SURFACE.canvasFrom})`} />
+        <stop offset="100%" stopColor={`var(--canvas-to, ${SURFACE.canvasTo})`} />
       </radialGradient>
 
       <filter id="soft-shadow" x="-40%" y="-40%" width="180%" height="180%">

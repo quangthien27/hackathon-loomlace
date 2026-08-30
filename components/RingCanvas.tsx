@@ -134,6 +134,7 @@ export function RingCanvas({ design, onMoveStone }: Props) {
                 setting={design.setting}
                 metal={design.band.metal}
                 stoneRadius={STONE_UNIT_R}
+                cut={stone.cut}
               />
             )}
             <StoneArt cut={stone.cut} type={stone.type} />
@@ -142,6 +143,7 @@ export function RingCanvas({ design, onMoveStone }: Props) {
                 setting={design.setting}
                 metal={design.band.metal}
                 stoneRadius={STONE_UNIT_R}
+                cut={stone.cut}
               />
             )}
             {/* Generous invisible grab target — the facet art has thin edges. */}

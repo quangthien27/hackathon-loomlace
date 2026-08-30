@@ -4,6 +4,10 @@
   --background: #f2efe9;
   --surface: #fbfaf7;
   --foreground: #221f1b;
+  /* Read by the ring canvas's background gradient (components/SvgDefs.tsx), so
+     the surface the ring sits on follows the theme rather than staying light. */
+  --canvas-from: #f7f4ef;
+  --canvas-to: #e9e4da;
 }
 
 @theme inline {
@@ -19,6 +23,8 @@
     --background: #131211;
     --surface: #1b1a18;
     --foreground: #ece8e1;
+    --canvas-from: #24221f;
+    --canvas-to: #0e0d0c;
   }
 }
 
