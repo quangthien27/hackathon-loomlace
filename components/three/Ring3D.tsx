@@ -483,7 +483,7 @@ export function Ring3D({
   onDragChange: (dragging: boolean) => void;
 }) {
   const centre = centreStone(design);
-  const drag = useStoneDrag(ringRef);
+  const drag = useStoneDrag(ringRef, onDragChange);
 
   return (
     <group>
@@ -525,9 +525,8 @@ export function Ring3D({
               rotation-x={Math.PI / 2}
               onPointerDown={(e) => {
                 e.stopPropagation();
-                if (drag.begin(stone.id, e.clientX, e.clientY)) onDragChange(true);
+                drag.begin(stone.id, e.clientX, e.clientY);
               }}
-              onPointerUp={() => onDragChange(false)}
             >
               {isCentre && (design.setting === "solitaire" || design.setting === "pave") && (
                 <Claws

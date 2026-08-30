@@ -27,7 +27,6 @@ import {
   WebGLRenderTarget,
 } from "three";
 import type { DesignState } from "@/lib/design";
-import { useDesign } from "@/lib/store";
 import { registerStudioCapture } from "@/lib/capture";
 import { VIEWS } from "@/lib/render3d/scene";
 import { buildBackdropTexture, buildGemEnvironment, buildStudioEnvironment } from "@/lib/render3d/studio";
@@ -249,10 +248,11 @@ function Exposure({ value }: { value: number }) {
 }
 
 export function RingScene3D({
-  design: eased,
+  design,
   mode,
   exposure,
   fpsRef,
+  onDragChange,
 }: {
   design: DesignState;
   mode: GemMode;
@@ -260,14 +260,10 @@ export function RingScene3D({
    *  whole studio together instead of letting individual lamps drift apart. */
   exposure: number;
   fpsRef: React.RefObject<HTMLSpanElement | null>;
+  /** Raised while a stone is being dragged, so the page can stop easing. */
+  onDragChange: (dragging: boolean) => void;
 }) {
   const ring = useRef<Group>(null);
-  const [dragging, setDragging] = useState(false);
-  const live = useDesign((s) => s.design);
-  // A drag must track the cursor 1:1. Easing the rendered design would restart
-  // a 420ms tween on every pointermove, so the stone would trail the finger and
-  // keep sliding after release — the same trap the SVG canvas had.
-  const design = dragging ? live : eased;
   // Built inside onCreated because it needs the renderer; held in state so the
   // gem materials pick it up on the next render.
   const [gemEnv, setGemEnv] = useState<Texture | null>(null);
@@ -295,7 +291,7 @@ export function RingScene3D({
           mode={mode}
           gemEnv={gemEnv}
           ringRef={ring}
-          onDragChange={setDragging}
+          onDragChange={onDragChange}
         />
       </group>
 

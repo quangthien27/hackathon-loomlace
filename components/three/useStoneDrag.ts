@@ -61,7 +61,10 @@ function intersectBandCylinder(
   return hit.copy(direction).multiplyScalar(t).add(origin);
 }
 
-export function useStoneDrag(ring: React.RefObject<Group | null>) {
+export function useStoneDrag(
+  ring: React.RefObject<Group | null>,
+  onDragChange: (dragging: boolean) => void,
+) {
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as { enabled: boolean } | null;
@@ -130,12 +133,16 @@ export function useStoneDrag(ring: React.RefObject<Group | null>) {
   );
 
   const end = useCallback(() => {
+    if (active.current === null) return;
     active.current = null;
+    // Reported from here rather than from a pointerup handler on the stone,
+    // because a release with the cursor anywhere else never reaches the mesh.
+    onDragChange(false);
     if (controls) controls.enabled = true;
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", end);
     window.removeEventListener("pointercancel", end);
-  }, [controls, onMove]);
+  }, [controls, onMove, onDragChange]);
 
   /** Call from a stone's onPointerDown. Returns true if a drag started. */
   const begin = useCallback(
@@ -147,6 +154,7 @@ export function useStoneDrag(ring: React.RefObject<Group | null>) {
       const p = sample(clientX, clientY);
       offset.current = p ? stone.x - p.x : 0;
       active.current = stoneId;
+      onDragChange(true);
       // Otherwise the orbit controls spin the camera while the stone moves.
       if (controls) controls.enabled = false;
       window.addEventListener("pointermove", onMove);
@@ -154,7 +162,7 @@ export function useStoneDrag(ring: React.RefObject<Group | null>) {
       window.addEventListener("pointercancel", end);
       return true;
     },
-    [controls, end, onMove, sample],
+    [controls, end, onDragChange, onMove, sample],
   );
 
   return { begin, isDragging: () => active.current !== null };

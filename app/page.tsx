@@ -69,7 +69,8 @@ const noActivity = () => EMPTY_ACTIVITY;
 
 export default function Studio3DPage() {
   const design = useDesign((s) => s.design);
-  const shown = useEasedDesign(design);
+  const [dragging, setDragging] = useState(false);
+  const shown = useEasedDesign(design, dragging);
   const fpsRef = useRef<HTMLSpanElement>(null);
   const [mode, setMode] = useState<GemMode>("refractive-core");
   const [exposure, setExposure] = useState(1.7);
@@ -129,7 +130,13 @@ export default function Studio3DPage() {
             </p>
           </>
         ) : (
-          <RingScene3D design={shown} mode={mode} exposure={exposure} fpsRef={fpsRef} />
+          <RingScene3D
+            design={shown}
+            mode={mode}
+            exposure={exposure}
+            fpsRef={fpsRef}
+            onDragChange={setDragging}
+          />
         )}
 
         {/* The canvas is one opaque element to a screen reader, so the design is
