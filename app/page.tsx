@@ -116,7 +116,7 @@ export default function Studio3DPage() {
   return (
     <div className="flex min-h-full flex-col lg:h-screen lg:flex-row lg:overflow-hidden">
       <section
-        className={`relative flex min-h-[52vh] flex-1 items-center justify-center lg:min-h-0 ${
+        className={`relative flex h-[58vh] shrink-0 items-center justify-center lg:h-auto lg:min-h-0 lg:flex-1 ${
           !webgl ? "bg-[var(--surface)]" : "bg-[#141312]"
         }`}
       >

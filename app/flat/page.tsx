@@ -82,7 +82,7 @@ export default function Page() {
 
   return (
     <div className="flex min-h-full flex-col lg:h-screen lg:flex-row lg:overflow-hidden">
-      <section className="relative flex min-h-[52vh] flex-1 items-center justify-center lg:min-h-0">
+      <section className="relative flex h-[58vh] shrink-0 items-center justify-center lg:h-auto lg:min-h-0 lg:flex-1">
         <RingCanvas
           design={shown}
           onMoveStone={(id, x, y) => useDesign.getState().placeStone({ id, x, y })}
