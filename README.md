@@ -101,6 +101,29 @@ The result comes back JSON-serialised as a `DOMString`. This affects callers
 only — tool definitions are unaffected. The `?mock=1` shim mirrors the shipped
 behaviour rather than the specified one, so local testing stays a fair rehearsal.
 
+## Gotcha: `inputSchema` is advertised, not enforced
+
+Chrome shows a tool's `inputSchema` to the model but does not validate against
+it. A call with the wrong property name, or a value outside a declared enum,
+reaches `execute` as plain `undefined` — it is not rejected before it gets
+there.
+
+That is not theoretical. `set_setting_style` declares one required property,
+`setting`, with a four-value enum. Calling it as `{ style: "solitaire" }` — a
+plausible slip, since the tool is *named* `set_setting_style` — wrote
+`undefined` into the store and turned the price into `£NaN`. Nothing warned.
+
+So every tool re-checks its own arguments at the boundary (`enumArg` and `fail`
+in `lib/tools.ts`) and returns a message naming the field and its legal values,
+which is something a model can actually recover from:
+
+```
+{ ok: false, error: "\"setting\" must be one of: solitaire, halo, pave, bezel." }
+```
+
+Treat `inputSchema` as documentation for the model, and validate as if the input
+came off the network — because in effect it did.
+
 ## Layout
 
 ```

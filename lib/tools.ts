@@ -1,14 +1,14 @@
 import {
+  BAND_MAX_MM,
+  BAND_MIN_MM,
   describeBand,
   type Cut,
   type Metal,
   type Profile,
-  type Setting,
   type StoneType,
-  type View,
 } from "./design";
 import { estimatePrice, formatGBP } from "./price";
-import { PRESET_NAMES, PRESET_BLURB, type PresetName } from "./presets";
+import { PRESET_NAMES, PRESET_BLURB } from "./presets";
 import { currentDesign, useDesign } from "./store";
 
 /**
@@ -56,6 +56,44 @@ function normalizeUkSize(raw: string): string | null {
 
 const ok = (summary: string) => ({ ok: true, summary, design: currentDesign() });
 
+/**
+ * INPUT VALIDATION IS OURS TO DO.
+ *
+ * `inputSchema` is advertised to the model, but Chrome does not enforce it:
+ * calling a tool with the wrong property name, or a value outside the declared
+ * enum, arrives here as plain `undefined` rather than being rejected. Writing
+ * that straight into the store is how `set_setting_style({ style: "solitaire" })`
+ * — a plausible mistake, since the property is called `setting` — silently set
+ * the setting to undefined and turned the price into £NaN.
+ *
+ * So every enum is re-checked at the boundary, and a bad call gets a message
+ * naming the field and its legal values, which is something a model can act on.
+ */
+const fail = (message: string) => ({ ok: false, error: message, design: currentDesign() });
+
+function enumArg<T extends string>(
+  input: unknown,
+  field: string,
+  allowed: readonly T[],
+): T | null {
+  const value = (input as Record<string, unknown> | null)?.[field];
+  return typeof value === "string" && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : null;
+}
+
+const METALS = ["yellow", "white", "rose", "platinum"] as const;
+const PROFILES = ["flat", "court", "knife-edge"] as const;
+const SETTINGS = ["solitaire", "halo", "pave", "bezel"] as const;
+const VIEWS = ["top", "side", "inside"] as const;
+const CUTS = ["round", "oval", "emerald", "princess"] as const;
+const STONE_TYPES = ["diamond", "sapphire", "emerald", "ruby"] as const;
+const PLACEMENTS = ["inside", "outside"] as const;
+const FONTS = ["serif", "script"] as const;
+
+const expected = (field: string, allowed: readonly string[]) =>
+  `"${field}" must be one of: ${allowed.join(", ")}.`;
+
 export const coreTools: ModelContextTool[] = [
   {
     name: "get_design_state",
@@ -87,11 +125,28 @@ export const coreTools: ModelContextTool[] = [
     },
     annotations: { readOnlyHint: false },
     execute: async (input) => {
-      useDesign.getState().setBand(input as {
-        widthMm?: number;
-        profile?: Profile;
-        metal?: Metal;
-      });
+      const i = (input ?? {}) as { widthMm?: unknown; profile?: unknown; metal?: unknown };
+      const patch: { widthMm?: number; profile?: Profile; metal?: Metal } = {};
+
+      if (i.widthMm !== undefined) {
+        if (typeof i.widthMm !== "number" || !Number.isFinite(i.widthMm))
+          return fail(`"widthMm" must be a number between ${BAND_MIN_MM} and ${BAND_MAX_MM}.`);
+        patch.widthMm = i.widthMm;
+      }
+      if (i.profile !== undefined) {
+        const profile = enumArg(i, "profile", PROFILES);
+        if (!profile) return fail(expected("profile", PROFILES));
+        patch.profile = profile;
+      }
+      if (i.metal !== undefined) {
+        const metal = enumArg(i, "metal", METALS);
+        if (!metal) return fail(expected("metal", METALS));
+        patch.metal = metal;
+      }
+      if (!Object.keys(patch).length)
+        return fail("Pass at least one of widthMm, profile or metal.");
+
+      useDesign.getState().setBand(patch);
       return ok(`Band is now a ${describeBand(currentDesign().band)}.`);
     },
   },
@@ -114,7 +169,8 @@ export const coreTools: ModelContextTool[] = [
     },
     annotations: { readOnlyHint: false },
     execute: async (input) => {
-      const setting = (input as { setting: Setting }).setting;
+      const setting = enumArg(input, "setting", SETTINGS);
+      if (!setting) return fail(expected("setting", SETTINGS));
       useDesign.getState().setSetting(setting);
       return ok(`Setting is now ${setting}. Engraving is available from here.`);
     },
@@ -134,7 +190,8 @@ export const coreTools: ModelContextTool[] = [
     },
     annotations: { readOnlyHint: false },
     execute: async (input) => {
-      const view = (input as { view: View }).view;
+      const view = enumArg(input, "view", VIEWS);
+      if (!view) return fail(expected("view", VIEWS));
       useDesign.getState().setView(view);
       return ok(`Now showing the ${view} view.`);
     },
@@ -177,16 +234,27 @@ export const coreTools: ModelContextTool[] = [
     },
     annotations: { readOnlyHint: false },
     execute: async (input) => {
-      const i = input as {
-        id?: string;
-        type?: StoneType;
-        cut?: Cut;
-        sizeMm?: number;
-        x?: number;
-        y?: number;
+      const i = (input ?? {}) as Record<string, unknown>;
+
+      if (i.type !== undefined && !enumArg(i, "type", STONE_TYPES))
+        return fail(expected("type", STONE_TYPES));
+      if (i.cut !== undefined && !enumArg(i, "cut", CUTS)) return fail(expected("cut", CUTS));
+      for (const field of ["sizeMm", "x", "y"] as const) {
+        const v = i[field];
+        if (v !== undefined && (typeof v !== "number" || !Number.isFinite(v)))
+          return fail(`"${field}" must be a number.`);
+      }
+
+      const patch = {
+        id: typeof i.id === "string" ? i.id : undefined,
+        type: i.type as StoneType | undefined,
+        cut: i.cut as Cut | undefined,
+        sizeMm: i.sizeMm as number | undefined,
+        x: i.x as number | undefined,
+        y: i.y as number | undefined,
       };
-      const existed = i.id ? currentDesign().stones.some((s) => s.id === i.id) : false;
-      const stone = useDesign.getState().placeStone(i);
+      const existed = patch.id ? currentDesign().stones.some((s) => s.id === patch.id) : false;
+      const stone = useDesign.getState().placeStone(patch);
       const action = existed ? "Moved/restyled" : "Added";
       return ok(
         `${action} stone ${stone.id}: ${stone.sizeMm.toFixed(1)}mm ${stone.type} ` +
@@ -256,7 +324,8 @@ export const coreTools: ModelContextTool[] = [
     },
     annotations: { readOnlyHint: false },
     execute: async (input) => {
-      const { style } = input as { style: PresetName };
+      const style = enumArg(input, "style", PRESET_NAMES);
+      if (!style) return fail(expected("style", PRESET_NAMES));
       const before = currentDesign();
       useDesign.getState().applyPreset(style);
       const after = currentDesign();
@@ -429,13 +498,22 @@ export const engravingTool: ModelContextTool = {
   },
   annotations: { readOnlyHint: false },
   execute: async (input) => {
-    const i = input as { text: string; font?: "serif" | "script"; placement?: "inside" | "outside" };
+    const i = (input ?? {}) as Record<string, unknown>;
+
+    if (typeof i.text !== "string" || !i.text.trim())
+      return fail('"text" is required and must be a non-empty string.');
+    if (i.font !== undefined && !enumArg(i, "font", FONTS)) return fail(expected("font", FONTS));
+    if (i.placement !== undefined && !enumArg(i, "placement", PLACEMENTS))
+      return fail(expected("placement", PLACEMENTS));
+
+    const text = i.text.slice(0, 40);
+    const placement = (i.placement as "inside" | "outside" | undefined) ?? "inside";
     useDesign.getState().setEngraving({
-      text: i.text.slice(0, 40),
-      font: i.font ?? "serif",
-      placement: i.placement ?? "inside",
+      text,
+      font: (i.font as "serif" | "script" | undefined) ?? "serif",
+      placement,
     });
-    useDesign.getState().setView(i.placement === "outside" ? "side" : "inside");
-    return ok(`Engraved "${i.text}" on the ${i.placement ?? "inside"} of the band.`);
+    useDesign.getState().setView(placement === "outside" ? "side" : "inside");
+    return ok(`Engraved "${text}" on the ${placement} of the band.`);
   },
 };
