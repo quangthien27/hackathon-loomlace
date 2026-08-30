@@ -8,6 +8,7 @@ import {
   type Profile,
   type StoneType,
 } from "./design";
+import { orderUrl } from "./order";
 import { estimatePrice, formatGBP } from "./price";
 import { PRESET_NAMES, PRESET_BLURB } from "./presets";
 import { currentDesign, useDesign } from "./store";
@@ -25,7 +26,6 @@ import { currentDesign, useDesign } from "./store";
  * to hand off there instead — the design travels as query params either way, so
  * no integration work is needed on the receiving end beyond reading them.
  */
-const DEFAULT_STORE_URL = "/order";
 
 /**
  * Accepts the common ways a human or agent writes a UK ring size half —
@@ -84,7 +84,7 @@ function enumArg<T extends string>(
 }
 
 const METALS = ["yellow", "white", "rose", "platinum"] as const;
-const PROFILES = ["flat", "court", "knife-edge"] as const;
+const PROFILES = ["flat", "court", "bevel", "knife-edge"] as const;
 const SETTINGS = ["solitaire", "halo", "pave", "bezel"] as const;
 const VIEWS = ["top", "side", "inside"] as const;
 const CUTS = ["round", "oval", "emerald", "princess"] as const;
@@ -113,13 +113,14 @@ export const coreTools: ModelContextTool[] = [
       "Change the ring's band. widthMm is the band thickness in millimetres — 1.2 is a " +
       "delicate thread, 2.2 is a classic everyday weight, 4.0 is deliberately chunky. " +
       "profile changes the cross-section silhouette: flat is modern and architectural, " +
-      "court is rounded and comfortable, knife-edge is sharp and art-deco. metal changes " +
+      "court is rounded and comfortable, bevel is a flat face with the edges cut away at "
+      + "an angle, knife-edge is sharp and art-deco. metal changes " +
       "both the colour and the price. Omit any field to leave it as it is.",
     inputSchema: {
       type: "object",
       properties: {
         widthMm: { type: "number", minimum: 1.2, maximum: 4.0 },
-        profile: { type: "string", enum: ["flat", "court", "knife-edge"] },
+        profile: { type: "string", enum: ["flat", "court", "bevel", "knife-edge"] },
         metal: { type: "string", enum: ["yellow", "white", "rose", "platinum"] },
       },
       additionalProperties: false,
@@ -405,25 +406,10 @@ export const coreTools: ModelContextTool[] = [
     annotations: { readOnlyHint: false },
     execute: async (input) => {
       const i = (input ?? {}) as { note?: string };
+      if (i.note !== undefined && typeof i.note !== "string")
+        return fail('"note" must be a string.');
       const design = currentDesign();
-      const price = estimatePrice(design);
-      const stoneSummary = design.stones.length
-        ? design.stones.map((s) => `${s.sizeMm.toFixed(1)}mm ${s.type} ${s.cut}`).join(" + ")
-        : "no stones";
-      const base =
-        (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_STORE_URL) ||
-        DEFAULT_STORE_URL;
-      const params = new URLSearchParams({
-        design: JSON.stringify(design),
-        metal: design.band.metal,
-        band_mm: design.band.widthMm.toFixed(1),
-        setting: design.setting,
-        stones: stoneSummary,
-        size: design.sizeUk,
-        price_gbp: formatGBP(price.totalPence),
-      });
-      if (i.note) params.set("note", i.note.slice(0, 200));
-      const url = `${base}?${params.toString()}`;
+      const url = orderUrl(design, i.note);
 
       if (typeof window === "undefined") {
         return { ok: false, summary: "No browser window available to open the store in.", url, design };

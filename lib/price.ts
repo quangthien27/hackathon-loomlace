@@ -33,6 +33,7 @@ export const BAND_INNER_RADIUS_MM = 8.75;
  * carries the least; flat sits in between.
  */
 export const PROFILE_DEPTH_MM: Record<DesignState["band"]["profile"], number> = {
+  bevel: 1.14,
   "knife-edge": 1.1,
   flat: 1.4,
   court: 1.8,

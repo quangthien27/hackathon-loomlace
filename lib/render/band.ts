@@ -130,6 +130,14 @@ function ringLayers(
       { d: ringPath(cx, cy, outerR - edgeW * 0.5, outerR - edgeW * 1.7, squashY), fill: ramp.shade, opacity: 0.35 },
       { d: ringPath(cx, cy, innerR + edgeW * 1.7, innerR + edgeW * 0.5, squashY), fill: ramp.shade, opacity: 0.35 },
     );
+  } else if (profile === "bevel") {
+    // Flat in the middle, with a chamfer cut along each edge. Unlike a court's
+    // roll-off these are hard-edged bands, which is what separates the two.
+    const chamfer = widthU * 0.22;
+    layers.push(
+      { d: ringPath(cx, cy, outerR - edgeW * 0.5, outerR - chamfer, squashY), fill: ramp.shade, opacity: 0.45 },
+      { d: ringPath(cx, cy, innerR + chamfer, innerR + edgeW * 0.5, squashY), fill: ramp.shade, opacity: 0.45 },
+    );
   } else if (profile === "knife-edge") {
     // A raised ridge along the centre: a bright, narrow band at midR, with
     // the metal shaded darker on both sides as the cross-section falls away.

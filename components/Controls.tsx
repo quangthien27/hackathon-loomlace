@@ -6,12 +6,23 @@ import { METAL, STONE } from "@/lib/render/materials";
 import { PRESET_BLURB, PRESET_NAMES, type PresetName } from "@/lib/presets";
 import { useDesign } from "@/lib/store";
 
-const PROFILES: Profile[] = ["flat", "court", "knife-edge"];
+const PROFILES: Profile[] = ["flat", "court", "bevel", "knife-edge"];
 const SETTINGS: Setting[] = ["solitaire", "halo", "pave", "bezel"];
 const VIEWS: View[] = ["top", "side", "inside"];
 const CUTS: Cut[] = ["round", "oval", "emerald", "princess"];
 const TYPES: StoneType[] = ["diamond", "sapphire", "emerald", "ruby"];
 const METALS: Metal[] = ["yellow", "white", "rose", "platinum"];
+
+const PLACEMENTS = ["inside", "outside"] as const;
+const FONTS = ["serif", "script"] as const;
+
+/** Short enough to sit on one line in a four-up segmented control. */
+const PROFILE_LABEL: Record<Profile, string> = {
+  flat: "Flat",
+  court: "Court",
+  bevel: "Bevel",
+  "knife-edge": "Knife",
+};
 
 const SETTING_LABEL: Record<Setting, string> = {
   solitaire: "Solitaire",
@@ -42,43 +53,31 @@ export function Controls({ design }: { design: DesignState }) {
       </Group>
 
       <Group label="Metal">
-        <div className="flex gap-2">
-          {METALS.map((m) => (
-            <button
-              key={m}
-              onClick={() => s.setBand({ metal: m })}
-              title={METAL[m].label}
-              aria-label={METAL[m].label}
-              aria-pressed={design.band.metal === m}
-              className={`h-9 w-9 rounded-full transition ${
-                design.band.metal === m
-                  ? "ring-2 ring-stone-900 ring-offset-2 ring-offset-[var(--surface)]"
-                  : "ring-1 ring-black/10 hover:ring-black/25"
-              }`}
-              style={{
-                background: `linear-gradient(140deg, ${METAL[m].highlight}, ${METAL[m].base} 55%, ${METAL[m].shade})`,
-              }}
-            />
-          ))}
-        </div>
+        <SwatchGrid
+          options={METALS}
+          value={design.band.metal}
+          onChange={(m) => s.setBand({ metal: m })}
+          label={(m) => METAL[m].label}
+          swatch={(m) =>
+            `linear-gradient(150deg, ${METAL[m].highlight} 0%, ${METAL[m].light} 26%, ${METAL[m].base} 58%, ${METAL[m].shade} 100%)`
+          }
+        />
       </Group>
 
       <Group label="Band" value={`${design.band.widthMm.toFixed(1)}mm`}>
-        <input
-          type="range"
+        <Slider
           min={BAND_MIN_MM}
           max={BAND_MAX_MM}
           step={0.1}
           value={design.band.widthMm}
-          onChange={(e) => s.setBand({ widthMm: Number(e.target.value) })}
-          className="w-full accent-stone-800"
-          aria-label="Band width in millimetres"
+          onChange={(v) => s.setBand({ widthMm: v })}
+          ariaLabel="Band width in millimetres"
         />
         <Segmented
           options={PROFILES}
           value={design.band.profile}
           onChange={(p) => s.setBand({ profile: p })}
-          render={(p) => p}
+          render={(p) => PROFILE_LABEL[p]}
         />
       </Group>
 
@@ -94,37 +93,23 @@ export function Controls({ design }: { design: DesignState }) {
       {centre && (
         <>
           <Group label="Stone" value={`${centre.sizeMm.toFixed(1)}mm`}>
-            <input
-              type="range"
+            <Slider
               min={STONE_MIN_MM}
               max={STONE_MAX_MM}
               step={0.1}
               value={centre.sizeMm}
-              onChange={(e) =>
-                s.placeStone({ id: centre.id, sizeMm: Number(e.target.value) })
-              }
-              className="w-full accent-stone-800"
-              aria-label="Stone size in millimetres"
+              onChange={(v) => s.placeStone({ id: centre.id, sizeMm: v })}
+              ariaLabel="Stone size in millimetres"
             />
-            <div className="flex gap-2">
-              {TYPES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => s.placeStone({ id: centre.id, type: t })}
-                  title={STONE[t].label}
-                  aria-label={STONE[t].label}
-                  aria-pressed={centre.type === t}
-                  className={`h-9 w-9 rounded-full transition ${
-                    centre.type === t
-                      ? "ring-2 ring-stone-900 ring-offset-2 ring-offset-[var(--surface)]"
-                      : "ring-1 ring-black/10 hover:ring-black/25"
-                  }`}
-                  style={{
-                    background: `radial-gradient(circle at 35% 28%, ${STONE[t].highlight}, ${STONE[t].base} 60%, ${STONE[t].deep})`,
-                  }}
-                />
-              ))}
-            </div>
+            <SwatchGrid
+              options={TYPES}
+              value={centre.type}
+              onChange={(t) => s.placeStone({ id: centre.id, type: t })}
+              label={(t) => STONE[t].label}
+              swatch={(t) =>
+                `radial-gradient(circle at 34% 26%, ${STONE[t].highlight} 0%, ${STONE[t].light} 22%, ${STONE[t].base} 58%, ${STONE[t].deep} 100%)`
+              }
+            />
           </Group>
 
           <Group label="Cut">
@@ -136,6 +121,53 @@ export function Controls({ design }: { design: DesignState }) {
             />
           </Group>
         </>
+      )}
+
+      {design.settingChosen && (
+        <Group label="Engraving">
+          <input
+            type="text"
+            maxLength={40}
+            placeholder="For E, 2026"
+            value={design.engraving?.text ?? ""}
+            onChange={(e) => {
+              const text = e.target.value;
+              s.setEngraving(
+                text.trim()
+                  ? {
+                      text,
+                      font: design.engraving?.font ?? "serif",
+                      placement: design.engraving?.placement ?? "inside",
+                    }
+                  : null,
+              );
+            }}
+            className="w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[13px] outline-none transition placeholder:opacity-35 focus:border-black/35"
+            aria-label="Engraving text"
+          />
+          {design.engraving && (
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Segmented
+                  options={PLACEMENTS}
+                  value={design.engraving.placement}
+                  onChange={(placement) =>
+                    s.setEngraving({ ...design.engraving!, placement })
+                  }
+                  render={(v) => v}
+                />
+              </div>
+              <div className="flex-1">
+                <Segmented
+                  options={FONTS}
+                  value={design.engraving.font}
+                  onChange={(font) => s.setEngraving({ ...design.engraving!, font })}
+                  render={(v) => v}
+                />
+              </div>
+            </div>
+          )}
+        </Group>
       )}
 
       <Group label="Style">
@@ -155,6 +187,94 @@ export function Controls({ design }: { design: DesignState }) {
         </div>
       </Group>
     </div>
+  );
+}
+
+/**
+ * A material swatch: a tile big enough to judge the colour, with its name
+ * underneath.
+ *
+ * Nine-millimetre circles could not carry a label, so the only way to tell
+ * white gold from platinum was to hover one and read a tooltip — which is no
+ * way to choose a metal, and impossible on a touch screen.
+ */
+function SwatchGrid<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+  swatch,
+}: {
+  options: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+  label: (v: T) => string;
+  swatch: (v: T) => string;
+}) {
+  return (
+    <div className="grid grid-cols-4 gap-2">
+      {options.map((o) => (
+        <button
+          key={o}
+          onClick={() => onChange(o)}
+          aria-pressed={value === o}
+          className="group flex flex-col items-stretch gap-1.5 text-left"
+        >
+          <span
+            className={`h-11 w-full rounded-lg transition ${
+              value === o
+                ? "ring-2 ring-stone-900 ring-offset-2 ring-offset-[var(--surface)] dark:ring-stone-100"
+                : "ring-1 ring-black/10 group-hover:ring-black/30"
+            }`}
+            style={{ background: swatch(o) }}
+          />
+          <span
+            className={`text-[10px] leading-tight tracking-tight transition ${
+              value === o ? "opacity-80" : "opacity-45 group-hover:opacity-70"
+            }`}
+          >
+            {label(o)}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * A range input with a visible track and a filled portion.
+ *
+ * The bare control rendered as a one-pixel line across the panel, which read as
+ * a section divider rather than as something you could drag.
+ */
+function Slider({
+  min,
+  max,
+  step,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (v: number) => void;
+  ariaLabel: string;
+}) {
+  const pct = ((value - min) / (max - min)) * 100;
+  return (
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      aria-label={ariaLabel}
+      className="loom-slider w-full"
+      style={{ ["--fill" as string]: `${pct}%` }}
+    />
   );
 }
 
@@ -198,7 +318,7 @@ function Segmented<T extends string>({
           key={o}
           onClick={() => onChange(o)}
           aria-pressed={value === o}
-          className={`flex-1 rounded-md px-2 py-1.5 text-[12px] capitalize transition ${
+          className={`flex-1 whitespace-nowrap rounded-md px-1.5 py-1.5 text-[12px] capitalize transition ${
             value === o
               ? "bg-stone-900 font-medium text-stone-50 shadow-sm dark:bg-stone-100 dark:text-stone-900"
               : "opacity-50 hover:opacity-90"

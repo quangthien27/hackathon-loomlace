@@ -4,7 +4,7 @@
  */
 
 export type Metal = "yellow" | "white" | "rose" | "platinum";
-export type Profile = "flat" | "court" | "knife-edge";
+export type Profile = "flat" | "court" | "bevel" | "knife-edge";
 export type StoneType = "diamond" | "sapphire" | "emerald" | "ruby";
 export type Cut = "round" | "oval" | "emerald" | "princess";
 export type Setting = "solitaire" | "halo" | "pave" | "bezel";

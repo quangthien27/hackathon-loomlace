@@ -6,6 +6,7 @@ import { ActivityFeed, AgentBadge, PriceBreakdown } from "@/components/AgentOver
 import { Controls } from "@/components/Controls";
 import { RingCanvas } from "@/components/RingCanvas";
 import { useEasedDesign } from "@/components/useEasedDesign";
+import { orderUrl } from "@/lib/order";
 import { estimatePrice, formatGBP } from "@/lib/price";
 import { loadDesign, scheduleSave } from "@/lib/persist";
 import { installMockModelContext } from "@/lib/mock-model-context";
@@ -90,7 +91,7 @@ export default function Page() {
         <ActivityFeed activity={activity} />
       </section>
 
-      <aside className="flex w-full shrink-0 flex-col gap-6 border-t border-black/10 bg-[var(--surface)] p-6 lg:h-screen lg:w-[352px] lg:overflow-y-auto lg:border-l lg:border-t-0 lg:p-8">
+      <aside className="flex w-full shrink-0 flex-col gap-6 border-t border-black/10 bg-[var(--surface)] p-6 lg:h-screen lg:w-[352px] lg:overflow-y-auto lg:border-l lg:border-t-0 lg:p-4">
         <header>
           <div className="flex items-baseline justify-between gap-3">
             <h1 className="font-serif text-[26px] leading-none tracking-tight">Loomlace</h1>
@@ -110,6 +111,17 @@ export default function Page() {
 
         <div className="mt-auto border-t border-black/10 pt-5">
           <PriceBreakdown lines={price.lines} total={formatGBP(price.totalPence)} />
+
+          {/* The same hand-off `add_to_cart` performs, through the same builder.
+              Leaving it agent-only made a whole step of the product invisible to
+              anyone who just wanted to click. */}
+          <button
+            type="button"
+            onClick={() => window.open(orderUrl(design), "_blank", "noopener")}
+            className="mt-4 w-full rounded-lg bg-stone-900 px-4 py-2.5 text-[13px] font-medium text-stone-50 transition hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-white"
+          >
+            Review this ring
+          </button>
           <p className="mt-4 text-[11px] leading-relaxed opacity-40">
             Nothing here has left your browser. The design is stored locally and is
             only sent anywhere when you order.

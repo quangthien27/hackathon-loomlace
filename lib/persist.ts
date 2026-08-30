@@ -36,7 +36,7 @@ function isSSRorNoIDB(): boolean {
 }
 
 const METALS: Metal[] = ["yellow", "white", "rose", "platinum"];
-const PROFILES: Profile[] = ["flat", "court", "knife-edge"];
+const PROFILES: Profile[] = ["flat", "court", "bevel", "knife-edge"];
 const STONE_TYPES: StoneType[] = ["diamond", "sapphire", "emerald", "ruby"];
 const CUTS: Cut[] = ["round", "oval", "emerald", "princess"];
 const SETTINGS: Setting[] = ["solitaire", "halo", "pave", "bezel"];

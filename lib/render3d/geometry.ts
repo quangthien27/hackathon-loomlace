@@ -14,6 +14,7 @@
  */
 
 import { BufferGeometry, Float32BufferAttribute, Vector2, Vector3 } from "three";
+import type { Profile } from "../design";
 
 const RAD = Math.PI / 180;
 
@@ -318,7 +319,7 @@ export type BandProfile = {
 };
 
 export function bandProfile(
-  profile: "flat" | "court" | "knife-edge",
+  profile: Profile,
   innerR: number,
   thickness: number,
   width: number,
@@ -336,6 +337,14 @@ export function bandProfile(
   const outerAt = (t: number) => {
     if (profile === "flat") return o;
     if (profile === "court") return o - 0.3 * thickness * t * t;
+    if (profile === "bevel") {
+      // A flat face with the edges cut away at an angle. The face stays truly
+      // flat across the middle — that hard transition into the chamfer is the
+      // whole look, and rounding it turns a bevel back into a court.
+      const shoulder = 0.5;
+      const into = Math.max(0, (Math.abs(t) - shoulder) / (1 - shoulder));
+      return o - into * 0.42 * thickness;
+    }
     return o + 0.42 * thickness * (1 - Math.abs(t)); // knife-edge: a ridge down the centre
   };
 

@@ -51,3 +51,72 @@ input[type="range"]::-webkit-slider-thumb {
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.18);
   cursor: grab;
 }
+
+/*
+ * Range inputs, given a visible track.
+ *
+ * The default control renders as a hairline across the panel, which reads as a
+ * section divider rather than as something draggable — a real report from the
+ * first person to look at the sidebar. The filled portion is driven by a
+ * --fill custom property set from React.
+ */
+.loom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.loom-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, currentColor 55%, transparent) 0 var(--fill, 50%),
+    color-mix(in srgb, currentColor 12%, transparent) var(--fill, 50%) 100%
+  );
+}
+
+.loom-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.loom-slider::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.loom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -6px;
+  height: 18px;
+  width: 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  transition: transform 120ms ease;
+}
+
+.loom-slider::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+
+.loom-slider:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.loom-slider:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}

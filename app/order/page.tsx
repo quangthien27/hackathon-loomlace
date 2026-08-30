@@ -18,6 +18,7 @@ const SETTING_LABEL: Record<DesignState["setting"], string> = {
 const PROFILE_LABEL: Record<DesignState["band"]["profile"], string> = {
   flat: "flat",
   court: "court",
+  bevel: "bevelled",
   "knife-edge": "knife-edge",
 };
 

@@ -292,8 +292,11 @@ function Bezel({
   metal: Metal;
   seatDepth: number;
 }) {
-  const wallTop = radius * 0.24;
-  const wallBottom = -radius * 0.3;
+  // The rim closes over the girdle and stands a little proud of it — that lip
+  // is what holds the stone in, and a bezel that stops below the girdle looks
+  // like a collar the stone is resting in rather than one gripping it.
+  const wallTop = radius * 0.2;
+  const wallBottom = -radius * 0.12;
 
   const wall = useMemo(() => {
     const outer = new Shape(girdleOutline(cut, radius * 1.13));
@@ -313,8 +316,11 @@ function Bezel({
   // The under-bezel runs from the wall to the band and follows the cut the
   // whole way. It replaces a cone, which was round whatever the stone was and
   // whose apex went straight through the shank once the stone got big.
+  // Tapered to follow the pavilion down to the band. The end scale is small
+  // because a pavilion is nearly a point by the time it reaches the shank;
+  // leaving the skirt wide left a visible tube of metal around nothing.
   const skirt = useMemo(
-    () => loftedSkirt(cut, radius, 1.13, wallBottom, 0.66, -seatDepth),
+    () => loftedSkirt(cut, radius, 1.13, wallBottom, 0.2, -seatDepth),
     [cut, radius, wallBottom, seatDepth],
   );
   useEffect(() => () => skirt.dispose(), [skirt]);
