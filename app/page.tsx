@@ -74,7 +74,10 @@ export default function Studio3DPage() {
   const shown = useEasedDesign(design, dragging);
   const fpsRef = useRef<HTMLSpanElement>(null);
   const [mode, setMode] = useState<GemMode>("refractive-core");
-  const [exposure, setExposure] = useState(1.7);
+  // Lower than it was. Bloom now adds perceived brightness of its own, and the
+  // polish map spreads the highlight rather than concentrating it, so the
+  // setting that looked right before the two of them lands hot.
+  const [exposure, setExposure] = useState(1.35);
   // Read like any other external, unchanging fact about the environment.
   const webgl = useSyncExternalStore(subscribeWebGL, hasWebGL, assumeWebGL);
 

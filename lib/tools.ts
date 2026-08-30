@@ -472,9 +472,11 @@ export const coreTools: ModelContextTool[] = [
 export const engravingTool: ModelContextTool = {
   name: "add_engraving",
   description:
-    "Engrave text on the band. Keep it short — roughly 30 characters fits comfortably " +
-    "inside a 2mm band. placement 'inside' is the private, traditional choice; " +
-    "'outside' is visible and reads as a design element.",
+    "Engrave text on the band, or clear an engraving that is already there. Keep it short " +
+    "— roughly 30 characters fits comfortably inside a 2mm band. placement 'inside' is the " +
+    "private, traditional choice; 'outside' is visible and reads as a design element. " +
+    "Pass an empty text to remove the engraving entirely. Omitting font or placement keeps " +
+    "whatever is already set, so you can retype the words without resetting the style.",
   inputSchema: {
     type: "object",
     properties: {
@@ -489,17 +491,32 @@ export const engravingTool: ModelContextTool = {
   execute: async (input) => {
     const i = (input ?? {}) as Record<string, unknown>;
 
-    if (typeof i.text !== "string" || !i.text.trim())
-      return fail('"text" is required and must be a non-empty string.');
+    if (typeof i.text !== "string") return fail('"text" is required and must be a string.');
     if (i.font !== undefined && !enumArg(i, "font", FONTS)) return fail(expected("font", FONTS));
     if (i.placement !== undefined && !enumArg(i, "placement", PLACEMENTS))
       return fail(expected("placement", PLACEMENTS));
 
+    // Empty text REMOVES the engraving. The sidebar has always been able to do
+    // this — clearing the field sets it to null — and a tool surface that can
+    // add something a human can also delete, but cannot delete it itself, is a
+    // surface the agent can talk itself into a corner with.
+    if (!i.text.trim()) {
+      if (!currentDesign().engraving) return ok("There was no engraving to remove.");
+      useDesign.getState().setEngraving(null);
+      return ok("Removed the engraving.");
+    }
+
+    // Omitted fields keep what is already set rather than snapping back to the
+    // defaults. Rewriting the words should not silently undo a choice of script
+    // or a move to the outside of the band — the same trap that made
+    // place_stone erase values it was never asked about.
+    const existing = currentDesign().engraving;
     const text = i.text.slice(0, 40);
-    const placement = (i.placement as "inside" | "outside" | undefined) ?? "inside";
+    const placement =
+      (i.placement as "inside" | "outside" | undefined) ?? existing?.placement ?? "inside";
     useDesign.getState().setEngraving({
       text,
-      font: (i.font as "serif" | "script" | undefined) ?? "serif",
+      font: (i.font as "serif" | "script" | undefined) ?? existing?.font ?? "serif",
       placement,
     });
     // Outside text is on the band's flank, which the hero three-quarter sees

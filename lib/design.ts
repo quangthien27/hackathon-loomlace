@@ -50,8 +50,17 @@ export const STONE_MAX_MM = 12;
 export const clamp = (n: number, min: number, max: number) =>
   Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min;
 
+/**
+ * The ring on screen before anyone has touched anything.
+ *
+ * Chosen to photograph well rather than to sit in the middle of every range.
+ * 2.5mm has enough face to catch a highlight and to carry an engraving, where
+ * 2.2 read as a wire once the band became a real 3D solid; UK I is a common
+ * women's size and, now that size drives the geometry, it frames better than
+ * the mid-scale M did.
+ */
 export const initialDesign: DesignState = {
-  band: { widthMm: 2.2, profile: "court", metal: "yellow" },
+  band: { widthMm: 2.5, profile: "court", metal: "yellow" },
   stones: [
     { id: "s1", type: "diamond", cut: "round", sizeMm: 6.5, x: 0.5, y: 0.5 },
   ],
@@ -59,7 +68,7 @@ export const initialDesign: DesignState = {
   settingChosen: false,
   engraving: null,
   view: "top",
-  sizeUk: "M",
+  sizeUk: "I",
 };
 
 /**
