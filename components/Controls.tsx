@@ -13,6 +13,25 @@ const CUTS: Cut[] = ["round", "oval", "emerald", "princess"];
 const TYPES: StoneType[] = ["diamond", "sapphire", "emerald", "ruby"];
 const METALS: Metal[] = ["yellow", "white", "rose", "platinum"];
 
+/**
+ * UK ring sizes, F to Z in half steps.
+ *
+ * The tool accepts A-Z because a novelty or child's size is still a valid
+ * design; the picker offers only the range an adult finger actually falls in,
+ * since a dropdown is a menu of sensible choices rather than a spec of what is
+ * parseable. The half symbol has to match what `normalizeUkSize` emits, or the
+ * agent and the dropdown would disagree about what "L half" means.
+ */
+const UK_SIZES: string[] = (() => {
+  const out: string[] = [];
+  for (let code = "F".charCodeAt(0); code <= "Z".charCodeAt(0); code++) {
+    const letter = String.fromCharCode(code);
+    out.push(letter);
+    if (letter !== "Z") out.push(`${letter}\u00bd`);
+  }
+  return out;
+})();
+
 const PLACEMENTS = ["inside", "outside"] as const;
 const FONTS = ["serif", "script"] as const;
 
@@ -79,6 +98,21 @@ export function Controls({ design }: { design: DesignState }) {
           onChange={(p) => s.setBand({ profile: p })}
           render={(p) => PROFILE_LABEL[p]}
         />
+      </Group>
+
+      <Group label="Ring size" value={`UK ${design.sizeUk}`}>
+        <select
+          value={design.sizeUk}
+          onChange={(e) => s.setSizeUk(e.target.value)}
+          aria-label="UK ring size"
+          className="w-full appearance-none rounded-lg border border-black/10 bg-transparent px-3 py-2 text-[13px] outline-none transition focus:border-black/35"
+        >
+          {UK_SIZES.map((size) => (
+            <option key={size} value={size}>
+              UK {size}
+            </option>
+          ))}
+        </select>
       </Group>
 
       <Group label="Setting">

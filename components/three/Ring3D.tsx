@@ -247,35 +247,65 @@ function Claws({
   radius,
   metal,
   seatDepth,
+  outerR,
 }: {
   cut: GemCut;
   radius: number;
   metal: Metal;
   seatDepth: number;
+  /** The band's outer radius, so each claw can be cut to meet its curve. */
+  outerR: number;
 }) {
   const beadY = radius * 0.26;
-  const footY = -seatDepth;
-  const shaftH = beadY - footY;
+
+  /**
+   * How far down a claw has to reach at a given sideways offset.
+   *
+   * `seatDepth` is only the distance to the band directly under the stone's
+   * axis. The band is a CYLINDER, so it curves away to either side, and a claw
+   * standing a couple of millimetres off-axis has further to travel. Cutting
+   * every claw to the same length is why the stone appeared to touch the shank
+   * at its culet and nowhere else — the four posts stopped short in mid-air.
+   */
+  const seatRadius = outerR + seatDepth;
+  const footAt = (offset: number) =>
+    Math.sqrt(Math.max(0, outerR * outerR - offset * offset)) - seatRadius;
+
+  // Sunk a little into the metal so the joint is a joint, not a butt contact.
+  const bite = radius * 0.1;
 
   return (
     <group>
-      {clawAnchors(cut, radius).map(([x, z], i) => (
-        <group key={i}>
-          <mesh position={[x * 1.02, (beadY + footY) / 2, z * 1.02]}>
-            <cylinderGeometry args={[radius * 0.085, radius * 0.15, shaftH, 12]} />
-            <MetalMat metal={metal} />
-          </mesh>
-          {/* The bead sits just inboard of the shaft, folded over the crown —
-              pulling it much further in reads as a stud floating on the table. */}
-          <mesh position={[x * 0.94, beadY, z * 0.94]} scale={[1, 0.74, 1]}>
-            <sphereGeometry args={[radius * 0.125, 20, 16]} />
-            <MetalMat metal={metal} />
-          </mesh>
-        </group>
-      ))}
-      {/* Gallery rail, halfway down the seat: it closes the basket and ties the
-          four claws together instead of leaving them as separate posts. */}
-      <Rail cut={cut} radius={radius} scale={0.86} y={-seatDepth * 0.55} tube={radius * 0.07} metal={metal} />
+      {clawAnchors(cut, radius).map(([x, z], i) => {
+        const px = x * 1.02;
+        const pz = z * 1.02;
+        const footY = footAt(px) - bite;
+        const shaftH = beadY - footY;
+        return (
+          <group key={i}>
+            <mesh position={[px, (beadY + footY) / 2, pz]}>
+              <cylinderGeometry args={[radius * 0.085, radius * 0.15, shaftH, 12]} />
+              <MetalMat metal={metal} />
+            </mesh>
+            {/* The bead sits just inboard of the shaft, folded over the crown —
+                pulling it much further in reads as a stud floating on the table. */}
+            <mesh position={[x * 0.94, beadY, z * 0.94]} scale={[1, 0.74, 1]}>
+              <sphereGeometry args={[radius * 0.125, 20, 16]} />
+              <MetalMat metal={metal} />
+            </mesh>
+          </group>
+        );
+      })}
+      {/* Gallery rail, low in the basket. Higher up it left the shafts sticking
+          out below it like legs under a table. */}
+      <Rail
+        cut={cut}
+        radius={radius}
+        scale={0.9}
+        y={-seatDepth * 0.82}
+        tube={radius * 0.075}
+        metal={metal}
+      />
     </group>
   );
 }
@@ -307,8 +337,12 @@ function Bezel({
       curveSegments: 24,
     });
     // Authored in the girdle plane, so stand it up and straddle the girdle.
+    // rotateX(-90) maps the extrusion from +z onto +y, i.e. 0..depth — so the
+    // offset has to be the wall's BOTTOM. Translating by the top instead lifted
+    // the whole rim a full wall-height clear of the skirt, which is what left
+    // the two pieces visibly unconnected.
     g.rotateX(-Math.PI / 2);
-    g.translate(0, wallTop, 0);
+    g.translate(0, wallBottom, 0);
     return g;
   }, [cut, radius, wallTop, wallBottom]);
   useEffect(() => () => wall.dispose(), [wall]);
@@ -343,12 +377,14 @@ function Halo({
   radius,
   metal,
   seatDepth,
+  outerR,
   env,
 }: {
   cut: GemCut;
   radius: number;
   metal: Metal;
   seatDepth: number;
+  outerR: number;
   env: Texture | null;
 }) {
   const ring = haloRing(cut, radius);
@@ -372,7 +408,7 @@ function Halo({
           </group>
         );
       })}
-      <Claws cut={cut} radius={radius} metal={metal} seatDepth={seatDepth} />
+      <Claws cut={cut} radius={radius} metal={metal} seatDepth={seatDepth} outerR={outerR} />
     </group>
   );
 }
@@ -464,7 +500,13 @@ export function Ring3D({
               onPointerUp={() => onDragChange(false)}
             >
               {isCentre && (design.setting === "solitaire" || design.setting === "pave") && (
-                <Claws cut={cut} radius={p.radius} metal={design.band.metal} seatDepth={p.seatDepth} />
+                <Claws
+                  cut={cut}
+                  radius={p.radius}
+                  metal={design.band.metal}
+                  seatDepth={p.seatDepth}
+                  outerR={bandDims(design).outerR}
+                />
               )}
               {isCentre && design.setting === "bezel" && (
                 <Bezel cut={cut} radius={p.radius} metal={design.band.metal} seatDepth={p.seatDepth} />
@@ -475,6 +517,7 @@ export function Ring3D({
                   radius={p.radius}
                   metal={design.band.metal}
                   seatDepth={p.seatDepth}
+                  outerR={bandDims(design).outerR}
                   env={gemEnv}
                 />
               )}
