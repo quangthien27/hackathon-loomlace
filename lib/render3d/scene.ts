@@ -229,7 +229,12 @@ const leaned = (deg: number) =>
 export const VIEWS: Record<View, ViewConfig> = {
   // The hero. Turned off-axis so the band reads as an ellipse rather than a
   // flat disc, and lifted to ~40deg so the camera can see into the table.
-  top: { camera: [0, 43, 51], target: [0, 4, 0], fov: 28, quaternion: turned(38) },
+  //
+  // Aimed at the STONE rather than the middle of the ring. Targeting the centre
+  // put the shank in the middle of the frame and left the stone drifting near
+  // the top edge — correct framing for a photograph of a hoop, wrong one for a
+  // photograph of a gem. The camera comes in a little with it.
+  top: { camera: [0, 44, 47], target: [0, 8, 0], fov: 28, quaternion: turned(38) },
   // Dead-on profile: the shot that sells how high the stone sits.
   side: { camera: [0, 4.5, 67], target: [0, 4.5, 0], fov: 28, quaternion: STANDING },
   // Turned almost side-on so the bore opens towards the camera and the far
