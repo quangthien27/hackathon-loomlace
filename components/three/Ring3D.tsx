@@ -296,7 +296,15 @@ function Claws({
   /** The band's outer radius, so each claw can be cut to meet its curve. */
   outerR: number;
 }) {
-  const beadY = radius * 0.26;
+  /**
+   * How high the bead sits on the crown.
+   *
+   * Shortening the prong is done from the TOP, by bringing the bead down the
+   * crown, rather than by raising the knee. The knee's height is what keeps the
+   * basket wire clear of the pavilion — lifting it starts the lean nearer the
+   * stone's widest point and puts the metal back through the gem.
+   */
+  const beadY = radius * 0.18;
 
   /**
    * How far down the metal has to reach at a given sideways offset.
