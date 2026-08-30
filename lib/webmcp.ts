@@ -11,18 +11,46 @@
 
 type Listener = () => void;
 
-const controllers = new Map<string, AbortController>();
+const controllers = new Map<string, { ac: AbortController; tool: ModelContextTool }>();
 const listeners = new Set<Listener>();
+
+/**
+ * A registered tool as the badge's panel shows it.
+ *
+ * Derived from the tool that was actually registered, never written out a
+ * second time by hand. A hard-coded list beside the badge would be a list of
+ * the tools we BELIEVE are live, and the entire reason to show it is that it is
+ * the real surface — including `add_engraving`, which comes and goes.
+ */
+export type ToolCard = { name: string; summary: string; readOnly: boolean };
+
+/**
+ * The first sentence of the description the agent itself receives.
+ *
+ * Deliberately not a separate human-facing blurb. These descriptions are the
+ * prompt — showing the real first line is the honest thing, and it keeps the
+ * panel from drifting away from what the model is told.
+ */
+function summarize(description: string): string {
+  const stop = description.indexOf(". ");
+  return stop === -1 ? description : description.slice(0, stop + 1);
+}
 
 /**
  * Cached snapshot. useSyncExternalStore compares getSnapshot() by identity, so
  * returning a fresh array on every call is an infinite render loop. Recompute
  * once per actual registry change instead.
  */
-let namesSnapshot: string[] = [];
+let toolsSnapshot: ToolCard[] = [];
 
 function emit() {
-  namesSnapshot = [...controllers.keys()].sort();
+  toolsSnapshot = [...controllers.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, { tool }]) => ({
+      name,
+      summary: summarize(tool.description),
+      readOnly: tool.annotations?.readOnlyHint === true,
+    }));
   for (const l of listeners) l();
 }
 
@@ -85,7 +113,7 @@ export function registerTool(tool: ModelContextTool): void {
   if (!mc) return;
 
   const ac = new AbortController();
-  controllers.set(tool.name, ac);
+  controllers.set(tool.name, { ac, tool });
   emit();
 
   Promise.resolve(mc.registerTool(withLogging(tool), { signal: ac.signal })).catch((err) => {
@@ -97,9 +125,9 @@ export function registerTool(tool: ModelContextTool): void {
 
 /** Unregistration happens via the AbortSignal — the spec has no unregisterTool(). */
 export function unregisterTool(name: string): void {
-  const ac = controllers.get(name);
-  if (!ac) return;
-  ac.abort();
+  const live = controllers.get(name);
+  if (!live) return;
+  live.ac.abort();
   controllers.delete(name);
   emit();
 }
@@ -108,8 +136,8 @@ export function registerTools(tools: ModelContextTool[]): void {
   for (const t of tools) registerTool(t);
 }
 
-/** Names this page believes are currently registered (our own bookkeeping). */
-export const registeredNames = (): string[] => namesSnapshot;
+/** What this page believes is currently registered (our own bookkeeping). */
+export const registeredTools = (): ToolCard[] => toolsSnapshot;
 
 export function subscribeRegistry(l: Listener): () => void {
   listeners.add(l);

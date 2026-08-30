@@ -304,7 +304,7 @@ function Slider({
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
       aria-label={ariaLabel}
-      className="loom-slider w-full"
+      className="loom-slider w-full my-2"
       style={{ ["--fill" as string]: `${pct}%` }}
     />
   );

@@ -21,11 +21,12 @@ import {
   isWebMcpAvailable,
   registerTool,
   registerTools,
-  registeredNames,
+  registeredTools,
   subscribeActivity,
   subscribeRegistry,
   unregisterTool,
 } from "@/lib/webmcp";
+import type { ToolCard } from "@/lib/webmcp";
 
 installMockModelContext();
 
@@ -62,8 +63,8 @@ const FlatFallback = dynamic(() => import("@/components/RingCanvas").then((m) =>
 
 const noSubscribe = () => () => {};
 const returnFalse = () => false;
-const EMPTY: string[] = [];
-const emptyList = () => EMPTY;
+const EMPTY_TOOLS: ToolCard[] = [];
+const emptyTools = () => EMPTY_TOOLS;
 const EMPTY_ACTIVITY: ReturnType<typeof getActivity> = [];
 const noActivity = () => EMPTY_ACTIVITY;
 
@@ -78,7 +79,7 @@ export default function Studio3DPage() {
   const webgl = useSyncExternalStore(subscribeWebGL, hasWebGL, assumeWebGL);
 
   const available = useSyncExternalStore(noSubscribe, isWebMcpAvailable, returnFalse);
-  const tools = useSyncExternalStore(subscribeRegistry, registeredNames, emptyList);
+  const tools = useSyncExternalStore(subscribeRegistry, registeredTools, emptyTools);
   const activity = useSyncExternalStore(subscribeActivity, getActivity, noActivity);
 
   // Identical to the SVG route, deliberately. The tools do not know or care
@@ -143,7 +144,7 @@ export default function Studio3DPage() {
             described in text alongside it. */}
         <p className="sr-only" role="img" aria-label={describeDesign(design)} />
 
-        <AgentBadge available={available} count={tools.length} tone={webgl ? "dark" : "light"} />
+        <AgentBadge available={available} tools={tools} tone={webgl ? "dark" : "light"} />
         <ActivityFeed activity={activity} />
 
         {/* Every canvas control lives in ONE cluster, bottom-right. They used to

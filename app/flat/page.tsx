@@ -18,11 +18,12 @@ import {
   isWebMcpAvailable,
   registerTool,
   registerTools,
-  registeredNames,
+  registeredTools,
   subscribeActivity,
   subscribeRegistry,
   unregisterTool,
 } from "@/lib/webmcp";
+import type { ToolCard } from "@/lib/webmcp";
 
 // Runs at module-eval time on the client, before any effect registers a tool.
 // ?mock=1 only; a no-op in a browser that already has the real API.
@@ -30,8 +31,8 @@ installMockModelContext();
 
 const noSubscribe = () => () => {};
 const returnFalse = () => false;
-const EMPTY: string[] = [];
-const emptyList = () => EMPTY;
+const EMPTY_TOOLS: ToolCard[] = [];
+const emptyTools = () => EMPTY_TOOLS;
 const EMPTY_ACTIVITY: ReturnType<typeof getActivity> = [];
 const noActivity = () => EMPTY_ACTIVITY;
 
@@ -40,7 +41,7 @@ export default function Page() {
   const shown = useEasedDesign(design);
 
   const available = useSyncExternalStore(noSubscribe, isWebMcpAvailable, returnFalse);
-  const tools = useSyncExternalStore(subscribeRegistry, registeredNames, emptyList);
+  const tools = useSyncExternalStore(subscribeRegistry, registeredTools, emptyTools);
   const activity = useSyncExternalStore(subscribeActivity, getActivity, noActivity);
 
   // Register the always-on tools exactly once. No cleanup: they live for the
@@ -87,7 +88,7 @@ export default function Page() {
           design={shown}
           onMoveStone={(id, x, y) => useDesign.getState().placeStone({ id, x, y })}
         />
-        <AgentBadge available={available} count={tools.length} />
+        <AgentBadge available={available} tools={tools} />
         <ActivityFeed activity={activity} />
       </section>
 
