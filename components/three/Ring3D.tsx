@@ -314,30 +314,55 @@ function Claws({
   // Sunk a little into the metal so the joint is a joint, not a butt contact.
   const bite = radius * 0.1;
 
+  /**
+   * Where the prong stops being vertical.
+   *
+   * A claw cannot lean the whole way. Starting the taper at the bead means that
+   * by the time the shaft reaches the girdle plane it has already travelled
+   * inwards past the stone's widest point — so it runs straight through the
+   * gem. A real prong is upright alongside the girdle and only the basket wire
+   * below it tapers, which is what this knee reproduces.
+   *
+   * Below the knee the wire's slope is deliberately shallower than the
+   * pavilion's, so the two diverge on the way down and can never meet again.
+   */
+  const kneeY = -radius * 0.16;
+
   return (
     <group>
       {clawAnchors(cut, radius).map(([x, z], i) => {
-        const top = new Vector3(x * 1.02, beadY, z * 1.02);
+        // Just proud of the girdle: a claw grips the stone's edge, so a little
+        // overlap is right, but the shaft's full width sitting inside it is not.
+        const px = x * 1.05;
+        const pz = z * 1.05;
+
+        const knee = new Vector3(px, kneeY, pz);
         const footX = x * BASKET_FOOT;
         const footZ = z * BASKET_FOOT;
-        const bottom = new Vector3(footX, footAt(footX) - bite, footZ);
+        const foot = new Vector3(footX, footAt(footX) - bite, footZ);
 
-        const axis = new Vector3().subVectors(top, bottom);
+        const axis = new Vector3().subVectors(knee, foot);
         const length = axis.length();
-        // A cylinder is built along +Y; rotate that onto the shaft's own line.
+        // A cylinder is built along +Y; rotate that onto the wire's own line.
         const orientation = new Quaternion().setFromUnitVectors(
           UP,
           axis.clone().normalize(),
         );
-        const middle = new Vector3().addVectors(top, bottom).multiplyScalar(0.5);
+        const middle = new Vector3().addVectors(knee, foot).multiplyScalar(0.5);
 
         return (
           <group key={i}>
-            <mesh position={middle} quaternion={orientation}>
-              <cylinderGeometry args={[radius * 0.085, radius * 0.13, length, 12]} />
+            {/* Upright prong, alongside the girdle. */}
+            <mesh position={[px, (beadY + kneeY) / 2, pz]}>
+              <cylinderGeometry args={[radius * 0.085, radius * 0.1, beadY - kneeY, 12]} />
               <MetalMat metal={metal} />
             </mesh>
-            {/* The bead sits just inboard of the shaft, folded over the crown —
+            {/* Basket wire, leaning in to the gallery. */}
+            <mesh position={middle} quaternion={orientation}>
+              <cylinderGeometry args={[radius * 0.1, radius * 0.12, length, 12]} />
+              <MetalMat metal={metal} />
+            </mesh>
+            {/* The bead sits just inboard of the prong, folded over the crown —
                 pulling it much further in reads as a stud floating on the table. */}
             <mesh position={[x * 0.94, beadY, z * 0.94]} scale={[1, 0.74, 1]}>
               <sphereGeometry args={[radius * 0.125, 20, 16]} />
