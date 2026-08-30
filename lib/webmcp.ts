@@ -34,6 +34,50 @@ export function modelContext(): ModelContext | undefined {
 
 export const isWebMcpAvailable = () => modelContext() !== undefined;
 
+/**
+ * A running log of what the agent has done, so the human can see it happen.
+ *
+ * Wired here rather than inside each tool: registerTool wraps every execute()
+ * on the way past, so the log can never drift out of sync with the actual tool
+ * surface, and tool authors don't have to remember to log.
+ */
+export type Activity = { id: number; tool: string; summary: string; at: number };
+
+const MAX_ACTIVITY = 24;
+let activity: Activity[] = [];
+let activitySeq = 0;
+const activityListeners = new Set<Listener>();
+
+export const getActivity = (): Activity[] => activity;
+
+export function subscribeActivity(l: Listener): () => void {
+  activityListeners.add(l);
+  return () => activityListeners.delete(l);
+}
+
+function pushActivity(tool: string, summary: string) {
+  activity = [{ id: ++activitySeq, tool, summary, at: Date.now() }, ...activity].slice(
+    0,
+    MAX_ACTIVITY,
+  );
+  for (const l of activityListeners) l();
+}
+
+function withLogging(tool: ModelContextTool): ModelContextTool {
+  return {
+    ...tool,
+    execute: async (input, options) => {
+      const result = await tool.execute(input, options);
+      const summary =
+        result && typeof result === "object" && "summary" in result
+          ? String((result as { summary: unknown }).summary)
+          : "done";
+      pushActivity(tool.name, summary);
+      return result;
+    },
+  };
+}
+
 /** Register a tool. Safe to call repeatedly — later calls for a live name no-op. */
 export function registerTool(tool: ModelContextTool): void {
   if (controllers.has(tool.name)) return;
@@ -44,7 +88,7 @@ export function registerTool(tool: ModelContextTool): void {
   controllers.set(tool.name, ac);
   emit();
 
-  Promise.resolve(mc.registerTool(tool, { signal: ac.signal })).catch((err) => {
+  Promise.resolve(mc.registerTool(withLogging(tool), { signal: ac.signal })).catch((err) => {
     console.error(`[loomlace] registerTool(${tool.name}) failed`, err);
     controllers.delete(tool.name);
     emit();
