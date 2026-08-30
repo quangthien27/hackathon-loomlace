@@ -121,7 +121,7 @@ export function stoneTransform(
   const dy = -Math.cos(theta);
 
   if (view === "side") {
-    const lift = mm(stone.sizeMm) * (SIDE_LIFT_PER_MM / UNITS_PER_MM);
+    const lift = stone.sizeMm * SIDE_LIFT_PER_MM; // must match pointToStoneXY
     return {
       cx: CENTER.x + dx * radial,
       cy: CENTER.y + dy * radial * SIDE_SQUASH - lift,
@@ -154,12 +154,20 @@ export function insideStrip(design: DesignState) {
   };
 }
 
-/** Inverse of stoneTransform's x/y, for drag-to-move. Returns normalised 0..1. */
+/**
+ * Inverse of stoneTransform's x/y, for drag-to-move. Returns normalised 0..1.
+ *
+ * `stone` matters in the 'side' view only, where the forward transform lifts a
+ * stone above the band by an amount proportional to its size. That lift has to
+ * be added back BEFORE undoing the foreshortening, or the squash divide
+ * amplifies the error and the stone jumps the moment you grab it.
+ */
 export function pointToStoneXY(
   design: DesignState,
   px: number,
   py: number,
   view: View = design.view,
+  stone?: Stone,
 ): { x: number; y: number } {
   const { innerR, widthU } = bandRadii(design);
 
@@ -171,8 +179,9 @@ export function pointToStoneXY(
     };
   }
 
+  const lift = view === "side" && stone ? stone.sizeMm * SIDE_LIFT_PER_MM : 0;
   const dx = px - CENTER.x;
-  const dy = (py - CENTER.y) / (view === "side" ? SIDE_SQUASH : 1);
+  const dy = (py - CENTER.y + lift) / (view === "side" ? SIDE_SQUASH : 1);
   const theta = Math.atan2(dx, -dy);
   const radial = Math.hypot(dx, dy);
 

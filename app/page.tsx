@@ -7,6 +7,7 @@ import { useEasedDesign } from "@/components/useEasedDesign";
 import { estimatePrice, formatGBP } from "@/lib/price";
 import { loadDesign, scheduleSave } from "@/lib/persist";
 import { installMockModelContext } from "@/lib/mock-model-context";
+import { initialDesign } from "@/lib/design";
 import { useDesign } from "@/lib/store";
 import { coreTools, engravingTool } from "@/lib/tools";
 import {
@@ -49,13 +50,15 @@ export default function Page() {
     else unregisterTool(engravingTool.name);
   }, [design.settingChosen]);
 
-  // Restore, then persist every change. Restore must not clobber an edit the
-  // human made in the moment before IndexedDB answered.
+  // Restore, then persist every change. IndexedDB may answer after the human
+  // has already touched something, so only restore over a design that is still
+  // untouched — otherwise a slow disk silently undoes their first edit.
   const restored = useRef(false);
   useEffect(() => {
     let cancelled = false;
     void loadDesign().then((saved) => {
-      if (!cancelled && saved && !restored.current) useDesign.getState().replace(saved);
+      const untouched = useDesign.getState().design === initialDesign;
+      if (!cancelled && saved && untouched) useDesign.getState().replace(saved);
       restored.current = true;
     });
     return () => {

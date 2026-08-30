@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { clamp, type DesignState, type Stone } from "@/lib/design";
+import { useDesign } from "@/lib/store";
 import { bandLayers, bandOutlinePath } from "@/lib/render/band";
 import {
   VIEW_BOX,
@@ -18,7 +19,7 @@ import { RoundBrilliant } from "@/components/stones/RoundBrilliant";
 import { SvgDefs } from "@/components/SvgDefs";
 
 type Props = {
-  /** The eased design — what gets drawn. */
+  /** The eased design — what gets drawn when nobody is dragging. */
   design: DesignState;
   /** Called as the human drags a stone. Writes straight through to the store. */
   onMoveStone: (id: string, x: number, y: number) => void;
@@ -29,9 +30,17 @@ type Props = {
  * both edit it through the same store — the only difference is that a drag
  * updates continuously and an agent's edit arrives in one step.
  */
-export function RingCanvas({ design, onMoveStone }: Props) {
+export function RingCanvas({ design: eased, onMoveStone }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  /** Cursor-to-stone-centre offset in user space, captured on pointerdown. */
+  const grabOffset = useRef({ dx: 0, dy: 0 });
+  const live = useDesign((s) => s.design);
+
+  // A drag must track the cursor 1:1. The easing that makes an agent's edit
+  // glide in would otherwise restart a 420ms tween on every pointermove, so the
+  // stone would trail the finger by ~150ms and keep sliding after release.
+  const design = dragging ? live : eased;
 
   /** Client pixels → SVG user units, so drags land where the cursor is at any zoom. */
   const toUserSpace = useCallback((clientX: number, clientY: number) => {
@@ -47,10 +56,30 @@ export function RingCanvas({ design, onMoveStone }: Props) {
     (id: string, clientX: number, clientY: number) => {
       const p = toUserSpace(clientX, clientY);
       if (!p) return;
-      const { x, y } = pointToStoneXY(design, p.x, p.y, design.view);
+      const stone = design.stones.find((s) => s.id === id);
+      // Apply the grab offset, so picking a stone up by its edge doesn't snap
+      // its centre to the cursor — the stone should stay under your finger
+      // exactly where you took hold of it.
+      const { x, y } = pointToStoneXY(
+        design,
+        p.x + grabOffset.current.dx,
+        p.y + grabOffset.current.dy,
+        design.view,
+        stone,
+      );
       onMoveStone(id, x, y);
     },
     [design, onMoveStone, toUserSpace],
+  );
+
+  const handleGrab = useCallback(
+    (stone: Stone, clientX: number, clientY: number) => {
+      const p = toUserSpace(clientX, clientY);
+      const t = stoneTransform(design, stone, design.view);
+      grabOffset.current = p ? { dx: t.cx - p.x, dy: t.cy - p.y } : { dx: 0, dy: 0 };
+      setDragging(stone.id);
+    },
+    [design, toUserSpace],
   );
 
   const engraving = engravingRender(design, design.view);
@@ -119,7 +148,7 @@ export function RingCanvas({ design, onMoveStone }: Props) {
             style={{ cursor: dragging === stone.id ? "grabbing" : "grab" }}
             onPointerDown={(e) => {
               e.currentTarget.setPointerCapture(e.pointerId);
-              setDragging(stone.id);
+              handleGrab(stone, e.clientX, e.clientY);
             }}
             onPointerMove={(e) => {
               if (dragging === stone.id) handleMove(stone.id, e.clientX, e.clientY);
