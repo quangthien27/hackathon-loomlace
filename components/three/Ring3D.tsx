@@ -166,7 +166,7 @@ function Gem({
 /** A melee stone: same facets, no transmission. See MELEE_PBR for why. */
 function Melee({ radius, env }: { radius: number; env: Texture | null }) {
   return (
-    <mesh geometry={gemGeometry("round")} scale={radius}>
+    <mesh geometry={gemGeometry("melee")} scale={radius}>
       <meshPhysicalMaterial flatShading {...MELEE_PBR} envMap={env} />
     </mesh>
   );

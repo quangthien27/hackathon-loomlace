@@ -97,11 +97,13 @@ export const GEM_CORE: Record<StoneType, string> = {
 };
 
 export const MELEE_PBR = {
-  color: "#F4F8FF",
-  roughness: 0.03,
+  color: "#0e1116",
+  roughness: 0.015,
   metalness: 0,
   ior: 2.4,
-  envMapIntensity: 4.2,
+  // Melee live or die on the environment alone: they carry no transmission and
+  // barely any body colour, so this is effectively their whole appearance.
+  envMapIntensity: 6.5,
   clearcoat: 1,
   clearcoatRoughness: 0.02,
 } as const;

@@ -216,9 +216,41 @@ function princessFacets(): Facet[] {
   ];
 }
 
+/**
+ * Melee: the same silhouette as a brilliant with a fraction of the facets.
+ *
+ * A halo stone is about 1.4mm across and renders maybe twenty pixels wide. Put
+ * a full 57-facet brilliant in that space and every facet lands on a sub-pixel
+ * area, so their values average together and the stone reads as a flat white
+ * disc — the 3D version of the "grey pearls" the SVG halo had. Fewer, larger
+ * facets each catch a distinct part of the environment, which at this size is
+ * the only thing that reads as sparkle.
+ */
+function meleeFacets(): Facet[] {
+  const gh = 0.04;
+  const ring = (r: number, y: number, twist = 0) =>
+    Array.from({ length: 8 }, (_, k) => at(k * 45 + twist, r, y));
+
+  const table = ring(0.5, gh + 0.34);
+  const gu = ring(1, gh);
+  const gl = ring(1, -gh);
+  const culet = ring(0.08, -gh - 0.72);
+
+  const band = (a: Vector3[], b: Vector3[]): Facet[] =>
+    Array.from({ length: 8 }, (_, i) => {
+      const j = (i + 1) % 8;
+      return [a[i], a[j], b[j], b[i]];
+    });
+
+  return [[...table], ...band(table, gu), ...band(gu, gl), ...band(gl, culet), [...culet]];
+}
+
 /* ─────────────────────────────── public API ─────────────────────────────── */
 
 export type GemCut = "round" | "oval" | "emerald" | "princess";
+
+/** Not a real cut — the low-facet stand-in used for halo and pave stones. */
+export type GemGeometryKind = GemCut | "melee";
 
 /**
  * A gem inscribed in a unit sphere-ish envelope: girdle radius 1 in x/z, table
@@ -226,14 +258,15 @@ export type GemCut = "round" | "oval" | "emerald" | "princess";
  * the same brilliant narrowed on one axis, which is very nearly what an oval
  * actually is.
  */
-const CACHE = new Map<GemCut, BufferGeometry>();
+const CACHE = new Map<GemGeometryKind, BufferGeometry>();
 
-export function gemGeometry(cut: GemCut): BufferGeometry {
+export function gemGeometry(cut: GemGeometryKind): BufferGeometry {
   const hit = CACHE.get(cut);
   if (hit) return hit;
 
   const g =
-    cut === "emerald" ? facetGeometry(stepCutFacets(0.68, 1))
+    cut === "melee" ? facetGeometry(meleeFacets())
+    : cut === "emerald" ? facetGeometry(stepCutFacets(0.68, 1))
     : cut === "princess" ? facetGeometry(princessFacets())
     : facetGeometry(brilliantFacets());
 
