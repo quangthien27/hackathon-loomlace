@@ -13,6 +13,8 @@
  */
 
 import { OrbitControls } from "@react-three/drei";
+import { Bloom, EffectComposer, ToneMapping } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -216,8 +218,16 @@ function StudioCapture() {
 
         const target = new WebGLRenderTarget(w, h, { colorSpace: SRGBColorSpace });
         const previous = gl.getRenderTarget();
+        // The effect composer switches the renderer's own tone mapping off and
+        // does it in its final pass instead. This render bypasses the composer,
+        // so it has to put the tone mapping back or the photograph comes out in
+        // raw linear light — washed out, and nothing like the studio the
+        // customer was just looking at.
+        const previousToneMapping = gl.toneMapping;
+        gl.toneMapping = NeutralToneMapping;
         gl.setRenderTarget(target);
         gl.render(scene, camera);
+        gl.toneMapping = previousToneMapping;
 
         const pixels = new Uint8Array(w * h * 4);
         gl.readRenderTargetPixels(target, 0, 0, w, h, pixels);
@@ -242,6 +252,96 @@ function StudioCapture() {
       }),
     [gl, scene, camera],
   );
+  return null;
+}
+
+/**
+ * SUPERSAMPLING WHILE NOBODY IS TOUCHING IT.
+ *
+ * The studio is static almost all of the time, and a static frame is where the
+ * quality is cheapest to buy. Once the scene settles the drawing buffer is
+ * rendered at a higher pixel ratio and downsampled, which is real supersampling
+ * — the facet edges of a brilliant cut are a picket fence of near-mirror
+ * boundaries, and MSAA only ever antialiases geometry, not the specular
+ * highlights fizzing along them.
+ *
+ * It drops straight back the instant anything moves, so nothing is paid for
+ * during a drag, an orbit or an agent edit — exactly the moments the frame rate
+ * is visible.
+ *
+ * This is NOT the progressive light accumulation it might look like. With no
+ * shadow-casting lights in this scene — the light is all environment — jittered
+ * accumulation would reduce to supersampling anyway, at the cost of a
+ * ping-pong buffer and taking over the render loop from a working
+ * StudioCapture. Same result, a fraction of the risk.
+ *
+ * And it self-limits: if the boosted frame rate cannot hold up, it gives up on
+ * the boost permanently rather than serving a smooth machine and a slideshow to
+ * everyone else.
+ */
+const IDLE_MS = 550;
+const BOOST = 1.5;
+const BOOST_FLOOR_FPS = 40;
+
+function IdleQuality({ design, mode }: { design: DesignState; mode: GemMode }) {
+  const gl = useThree((s) => s.gl);
+  const setDpr = useThree((s) => s.setDpr);
+  const controls = useThree((s) => s.controls) as { addEventListener: EventTarget["addEventListener"]; removeEventListener: EventTarget["removeEventListener"] } | null;
+
+  const base = useMemo(() => Math.min(window.devicePixelRatio || 1, 2), []);
+  const boosted = useRef(false);
+  const allowed = useRef(true);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const meter = useRef({ frames: 0, elapsed: 0 });
+
+  useEffect(() => {
+    const drop = () => {
+      if (boosted.current) {
+        boosted.current = false;
+        setDpr(base);
+      }
+      if (timer.current) clearTimeout(timer.current);
+      if (!allowed.current) return;
+      timer.current = setTimeout(() => {
+        boosted.current = true;
+        meter.current = { frames: 0, elapsed: 0 };
+        setDpr(Math.min(base * BOOST, 3));
+      }, IDLE_MS);
+    };
+
+    drop();
+    const canvas = gl.domElement;
+    for (const e of ["pointerdown", "pointermove", "wheel"] as const) {
+      canvas.addEventListener(e, drop, { passive: true });
+    }
+    controls?.addEventListener("change", drop);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+      for (const e of ["pointerdown", "pointermove", "wheel"] as const) {
+        canvas.removeEventListener(e, drop);
+      }
+      controls?.removeEventListener("change", drop);
+    };
+    // A design or mode change is activity too — it rebuilds geometry and
+    // materials, and the boost should not be in force while that lands.
+  }, [gl, controls, setDpr, base, design, mode]);
+
+  useFrame((_, dt) => {
+    if (!boosted.current || !allowed.current) return;
+    const m = meter.current;
+    m.frames += 1;
+    m.elapsed += dt;
+    if (m.elapsed < 1.4) return;
+    const fps = m.frames / m.elapsed;
+    m.frames = 0;
+    m.elapsed = 0;
+    if (fps >= BOOST_FLOOR_FPS) return;
+    // Measured once, then never attempted again for this session.
+    allowed.current = false;
+    boosted.current = false;
+    setDpr(base);
+  });
+
   return null;
 }
 
@@ -312,6 +412,31 @@ export function RingScene3D({
         target={VIEWS.top.target}
       />
       <ViewRig design={design} ring={ring} />
+      <IdleQuality design={design} mode={mode} />
+
+      {/*
+        BLOOM. The one post effect worth its cost here.
+
+        A photographed gem does not have a hard edge where a specular ends —
+        the lens and the eye both bleed a bright point into what surrounds it,
+        and on a stone whose whole appearance IS bright points that bleed is a
+        large part of what says "photograph". Threshold sits high on purpose so
+        only the actual speculars glow; drop it and the gold turns to fog.
+
+        The composer forces the renderer's tone mapping off and does it in the
+        final pass instead, so NeutralToneMapping has to be restated here to
+        keep the studio looking the way it did before the effect existed.
+      */}
+      <EffectComposer multisampling={4}>
+        <Bloom
+          intensity={0.3}
+          luminanceThreshold={0.95}
+          luminanceSmoothing={0.1}
+          radius={0.5}
+          mipmapBlur
+        />
+        <ToneMapping mode={ToneMappingMode.NEUTRAL} />
+      </EffectComposer>
       <FrameMeter node={fpsRef} />
       <StudioCapture />
       <Diagnostics />

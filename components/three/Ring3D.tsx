@@ -28,6 +28,7 @@ import {
 } from "@/lib/render3d/geometry";
 import { GEM_CORE, GEM_PBR, GEM_SPECULAR, MELEE_PBR, METAL_PBR } from "@/lib/render3d/materials3d";
 import { buildEngravingTexture } from "@/lib/render3d/engraving3d";
+import { POLISH_BASE, polishTexture } from "@/lib/render3d/finish";
 import { bandDims, haloRing, paveRun, placeStone } from "@/lib/render3d/scene";
 import { useStoneDrag } from "./useStoneDrag";
 
@@ -79,8 +80,11 @@ function Band({ design }: { design: DesignState }) {
       <meshStandardMaterial
         key={engraved ? "engraved" : "plain"}
         metalness={1}
-        roughness={engraved?.roughness ?? pbr.roughness}
-        roughnessMap={engraved?.texture ?? null}
+        /* Divided by POLISH_BASE because the map's mean sits there rather than
+           at full white; the two cancel and the average roughness is the one
+           the metal actually asked for. */
+        roughness={engraved?.roughness ?? pbr.roughness / POLISH_BASE}
+        roughnessMap={engraved?.texture ?? polishTexture(maxAnisotropy)}
         color={pbr.color}
         envMapIntensity={METAL_ENV}
         bumpMap={engraved?.texture ?? null}
@@ -187,12 +191,22 @@ function Melee({ radius, env }: { radius: number; env: Texture | null }) {
 
 /* ─────────────────────────────── settings ─────────────────────────────── */
 
+/**
+ * Every metal part that is not the band: claws, bezel, rails, beads.
+ *
+ * They share the band's polish map. One canvas for the whole ring rather than
+ * one per part — a setting is finished on the same wheel as the shank it is
+ * soldered to, and a claw with a mathematically perfect polish next to a band
+ * with a hand one looks wrong in a way that is hard to name.
+ */
 function MetalMat({ metal, roughnessBoost = 0 }: { metal: Metal; roughnessBoost?: number }) {
   const pbr = METAL_PBR[metal];
+  const maxAnisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
   return (
     <meshStandardMaterial
       metalness={1}
-      roughness={pbr.roughness + roughnessBoost}
+      roughness={(pbr.roughness + roughnessBoost) / POLISH_BASE}
+      roughnessMap={polishTexture(maxAnisotropy)}
       color={pbr.color}
       envMapIntensity={METAL_ENV}
     />

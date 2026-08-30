@@ -21,6 +21,7 @@
 
 import { CanvasTexture, LinearFilter, RepeatWrapping } from "three";
 import type { Engraving } from "../design";
+import { paintPolish } from "./finish";
 import type { BandProfile } from "./geometry";
 
 const WIDTH = 2048;
@@ -138,6 +139,12 @@ export function buildEngravingTexture(
   const baseGreen = Math.round((metalRoughness / GROOVE_ROUGHNESS) * 255);
   ctx.fillStyle = `rgb(255, ${baseGreen}, 0)`;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+  // The same hand-finish the unengraved band gets, laid down BEFORE the glyphs
+  // so the graver's matte channel is cut into the polish rather than sanded by
+  // it. An engraved band that lost its polish would be the one flat-looking
+  // ring in the studio.
+  paintPolish(ctx, baseGreen);
 
   const inside = engraving.placement === "inside";
   const [v0, v1] = inside ? profile.innerV : profile.outerV;
