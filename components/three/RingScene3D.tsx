@@ -140,18 +140,17 @@ function Diagnostics() {
  * Never enabled in production: a hidden tab should not be burning GPU.
  */
 function HiddenTabTick() {
-  const gl = useThree((s) => s.gl);
-  const scene = useThree((s) => s.scene);
-  const camera = useThree((s) => s.camera);
+  const advance = useThree((s) => s.advance);
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
-    // `advance()` only drives frameloop="never"; this canvas is "always", so
-    // render straight through the renderer instead.
+    // Must go through `advance`, not `gl.render`: rendering directly paints the
+    // scene but never runs the useFrame callbacks, so the camera rig and the
+    // ring's orientation freeze and every view but the first looks wrong.
     const id = setInterval(() => {
-      if (document.hidden) gl.render(scene, camera);
+      if (document.hidden) advance(performance.now());
     }, 120);
     return () => clearInterval(id);
-  }, [gl, scene, camera]);
+  }, [advance]);
   return null;
 }
 

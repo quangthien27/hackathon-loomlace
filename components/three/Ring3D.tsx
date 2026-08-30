@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { useThree } from "@react-three/fiber";
 import { BackSide, ExtrudeGeometry, LatheGeometry, Shape, type Texture } from "three";
 import { centreStone, type DesignState, type Metal, type Stone, type StoneType } from "@/lib/design";
 import {
@@ -13,6 +14,7 @@ import {
   type GemCut,
 } from "@/lib/render3d/geometry";
 import { GEM_CORE, GEM_PBR, GEM_SPECULAR, MELEE_PBR, METAL_PBR } from "@/lib/render3d/materials3d";
+import { buildEngravingTexture } from "@/lib/render3d/engraving3d";
 import { bandDims, haloRing, paveRun, placeStone } from "@/lib/render3d/scene";
 
 /**
@@ -29,22 +31,46 @@ const GEM_ENV = 3.8;
 
 function Band({ design }: { design: DesignState }) {
   const { innerR, thickness, width } = bandDims(design);
-  const profile = design.band.profile;
+  const profileName = design.band.profile;
+  const maxAnisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
 
-  const geometry = useMemo(
-    () => new LatheGeometry(bandProfile(profile, innerR, thickness, width), 256),
-    [profile, innerR, thickness, width],
+  const profile = useMemo(
+    () => bandProfile(profileName, innerR, thickness, width),
+    [profileName, innerR, thickness, width],
   );
+
+  const geometry = useMemo(() => new LatheGeometry(profile.points, 256), [profile]);
   useEffect(() => () => geometry.dispose(), [geometry]);
 
+  // Keyed on the engraving's own fields rather than on the object, so that a
+  // design tween — which rebuilds the design object every frame — does not
+  // regenerate a 2048px canvas sixty times a second.
+  const eng = design.engraving;
   const pbr = METAL_PBR[design.band.metal];
+  const engraved = useMemo(
+    () => buildEngravingTexture(eng, profile, pbr.roughness, maxAnisotropy),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [eng?.text, eng?.font, eng?.placement, profile, pbr.roughness, maxAnisotropy],
+  );
+  useEffect(() => () => engraved?.texture.dispose(), [engraved]);
+
   return (
     <mesh geometry={geometry} castShadow receiveShadow>
+      {/* Keyed on whether a map exists, which forces React to build a NEW
+          material rather than mutate the old one. three compiles a material's
+          shader from the maps present when it is created: a band that started
+          life without an engraving has no USE_BUMPMAP define, so assigning
+          bumpMap later sets a property the shader never reads and the
+          engraving silently does not appear. */}
       <meshStandardMaterial
+        key={engraved ? "engraved" : "plain"}
         metalness={1}
-        roughness={pbr.roughness}
+        roughness={engraved?.roughness ?? pbr.roughness}
+        roughnessMap={engraved?.texture ?? null}
         color={pbr.color}
         envMapIntensity={METAL_ENV}
+        bumpMap={engraved?.texture ?? null}
+        bumpScale={engraved?.bumpScale ?? 0}
       />
     </mesh>
   );

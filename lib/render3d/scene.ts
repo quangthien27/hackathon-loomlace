@@ -166,5 +166,10 @@ export const VIEWS: Record<View, ViewConfig> = {
   side: { camera: [0, 4.5, 67], target: [0, 4.5, 0], fov: 28, quaternion: STANDING },
   // Turned almost side-on so the bore opens towards the camera and the far
   // inner wall — where an engraving would go — faces you.
-  inside: { camera: [0, 11, 44], target: [0, -1, 0], fov: 26, quaternion: leaned(-40) },
+  // A CLOSE-UP, not a whole-ring shot. The bore is only as deep as the band is
+  // wide — about 2.2mm — so the inner wall is always a thin sliver whatever the
+  // angle. The SVG could unroll the band into a flat strip; 3D cannot, so the
+  // only way to make an engraving legible is to tip the shank away and move in
+  // on it. Framing the whole ring here would render the text three pixels tall.
+  inside: { camera: [0, 14, 30], target: [0, -6, -6], fov: 22, quaternion: leaned(45) },
 };

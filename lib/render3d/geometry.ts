@@ -265,13 +265,28 @@ export function gemDepth(cut: GemCut): number {
  * Traversal order matters: three derives each normal from the profile tangent,
  * so the OUTER surface must run in +y and the INNER surface in -y, or the ring
  * renders inside-out. Points are (radius, axial position).
+ *
+ * The v-ranges come back with the points because engraving needs them.
+ * LatheGeometry lays UVs out as u = angle around the ring and v = index along
+ * this array, so "the inner wall" is a horizontal band of the texture whose
+ * extent depends on how many points each surface contributed. Recomputing that
+ * range from a hardcoded formula elsewhere would silently put the text on the
+ * wrong surface the first time anyone changes SEGMENTS or the chamfer.
  */
+export type BandProfile = {
+  points: Vector2[];
+  /** v-range covered by the outer surface, in LatheGeometry UV space. */
+  outerV: [number, number];
+  /** v-range covered by the inner surface. */
+  innerV: [number, number];
+};
+
 export function bandProfile(
   profile: "flat" | "court" | "knife-edge",
   innerR: number,
   thickness: number,
   width: number,
-): Vector2[] {
+): BandProfile {
   const i = innerR;
   const o = innerR + thickness;
   const hw = width / 2;
@@ -288,27 +303,41 @@ export function bandProfile(
     return o + 0.42 * thickness * (1 - Math.abs(t)); // knife-edge: a ridge down the centre
   };
 
-  const pts: Vector2[] = [];
+  const points: Vector2[] = [];
   const span = hw - c;
 
   // Outer surface, running +y.
+  const outerStart = points.length;
   for (let k = 0; k <= N; k++) {
     const t = -1 + (2 * k) / N;
-    pts.push(new Vector2(outerAt(t), t * span));
+    points.push(new Vector2(outerAt(t), t * span));
   }
-  pts.push(new Vector2(outerAt(1) - c, hw));   // chamfer over the top edge
-  pts.push(new Vector2(innerAt(1) + c, hw));   // across the face to the inner wall
+  const outerEnd = points.length - 1;
+
+  points.push(new Vector2(outerAt(1) - c, hw));   // chamfer over the top edge
+  points.push(new Vector2(innerAt(1) + c, hw));   // across the face to the inner wall
+
   // Inner surface, running -y.
+  const innerStart = points.length;
   for (let k = 0; k <= N; k++) {
     const t = 1 - (2 * k) / N;
-    pts.push(new Vector2(innerAt(t), t * span));
+    points.push(new Vector2(innerAt(t), t * span));
   }
-  pts.push(new Vector2(innerAt(-1) + c, -hw));
-  pts.push(new Vector2(outerAt(-1) - c, -hw));
-  pts.push(pts[0].clone());                    // close the loop, or the shell has no caps
+  const innerEnd = points.length - 1;
 
-  return pts;
+  points.push(new Vector2(innerAt(-1) + c, -hw));
+  points.push(new Vector2(outerAt(-1) - c, -hw));
+  points.push(points[0].clone());                 // close the loop, or the shell has no caps
+
+  const denom = points.length - 1;
+  return {
+    points,
+    outerV: [outerStart / denom, outerEnd / denom],
+    innerV: [innerStart / denom, innerEnd / denom],
+  };
 }
+
+/* ─────────────────────────── girdle outlines ─────────────────────────── */
 
 /**
  * Half-extents of a cut's girdle outline, in gem radii, as [x, z].
@@ -320,16 +349,9 @@ export function cutFootprint(cut: GemCut): [number, number] {
   return [1, 1];
 }
 
-/** Number of sides in a cut's girdle outline — a bezel wall traces this. */
-export function cutSides(cut: GemCut): number {
-  if (cut === "princess") return 4;
-  if (cut === "emerald") return 8;
-  return 48;
-}
-
 /** The girdle outline as a closed 2D rim, for building bezels and collars. */
 export function girdleOutline(cut: GemCut, radius: number): Vector2[] {
-  const [fx, fz] = cutFootprint(cut);
+  const [fx] = cutFootprint(cut);
   if (cut === "princess")
     return [45, 135, 225, 315].map(
       (d) => new Vector2(Math.sin(d * RAD) * radius, Math.cos(d * RAD) * radius),
@@ -346,6 +368,6 @@ export function girdleOutline(cut: GemCut, radius: number): Vector2[] {
   const n = 48;
   return Array.from({ length: n }, (_, i) => {
     const a = (i / n) * Math.PI * 2;
-    return new Vector2(Math.sin(a) * radius * fx, Math.cos(a) * radius * fz);
+    return new Vector2(Math.sin(a) * radius * fx, Math.cos(a) * radius);
   });
 }
