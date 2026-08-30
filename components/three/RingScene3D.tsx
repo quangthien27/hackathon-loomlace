@@ -12,13 +12,13 @@
  * is a cost of the 3D renderer specifically, not of the codebase.
  */
 
-import { ContactShadows, OrbitControls } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Group, NeutralToneMapping, PerspectiveCamera, type Texture, Vector3 } from "three";
+import { BackSide, Group, NeutralToneMapping, PerspectiveCamera, type Texture, Vector3 } from "three";
 import type { DesignState } from "@/lib/design";
 import { useDesign } from "@/lib/store";
-import { bandDims, VIEWS } from "@/lib/render3d/scene";
+import { VIEWS } from "@/lib/render3d/scene";
 import { buildBackdropTexture, buildGemEnvironment, buildStudioEnvironment } from "@/lib/render3d/studio";
 import { Ring3D, type GemMode } from "./Ring3D";
 
@@ -160,20 +160,34 @@ function Backdrop() {
   const map = useMemo(() => buildBackdropTexture(), []);
   useEffect(() => () => map.dispose(), [map]);
   return (
-    <mesh position={[0, 2, -46]}>
-      <planeGeometry args={[190, 150]} />
-      <meshBasicMaterial map={map} toneMapped={false} />
+    <mesh scale={[-1, 1, 1]}>
+      {/* Big enough to sit well outside the orbit limits, so it never clips. */}
+      <sphereGeometry args={[260, 48, 32]} />
+      <meshBasicMaterial map={map} side={BackSide} toneMapped={false} depthWrite={false} />
     </mesh>
   );
+}
+
+/** Applies exposure after mount, since onCreated only runs once. */
+function Exposure({ value }: { value: number }) {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    gl.toneMappingExposure = value;
+  }, [gl, value]);
+  return null;
 }
 
 export function RingScene3D({
   design: eased,
   mode,
+  exposure,
   fpsRef,
 }: {
   design: DesignState;
   mode: GemMode;
+  /** Renderer exposure. The one light control worth exposing: it moves the
+   *  whole studio together instead of letting individual lamps drift apart. */
+  exposure: number;
   fpsRef: React.RefObject<HTMLSpanElement | null>;
 }) {
   const ring = useRef<Group>(null);
@@ -186,10 +200,6 @@ export function RingScene3D({
   // Built inside onCreated because it needs the renderer; held in state so the
   // gem materials pick it up on the next render.
   const [gemEnv, setGemEnv] = useState<Texture | null>(null);
-  // Every view stands the ring on edge (see VIEWS), so the surface it casts
-  // onto is always just under the band's lowest point.
-  const floorY = -bandDims(design).outerR - 0.05;
-
   return (
     <Canvas
       dpr={[1, 2]}
@@ -199,12 +209,13 @@ export function RingScene3D({
         // ACESFilmic (R3F's default) rolls off exactly the saturated speculars
         // that make a gem read as a gem. Khronos PBR Neutral keeps them.
         gl.toneMapping = NeutralToneMapping;
-        gl.toneMappingExposure = 1.15;
+        gl.toneMappingExposure = exposure;
         scene.environment = buildStudioEnvironment(gl);
         scene.environmentIntensity = 1.35;
         setGemEnv(buildGemEnvironment(gl));
       }}
     >
+      <Exposure value={exposure} />
       <Backdrop />
 
       <group ref={ring}>
@@ -216,18 +227,6 @@ export function RingScene3D({
           onDragChange={setDragging}
         />
       </group>
-
-      {design.view !== "inside" && (
-        <ContactShadows
-          position={[0, floorY, 0]}
-          opacity={0.42}
-          scale={70}
-          blur={2.6}
-          far={26}
-          resolution={512}
-          color="#2b2118"
-        />
-      )}
 
       <OrbitControls
         makeDefault

@@ -16,6 +16,7 @@
 import {
   BackSide,
   CanvasTexture,
+  EquirectangularReflectionMapping,
   SRGBColorSpace,
   BoxGeometry,
   Color,
@@ -42,15 +43,15 @@ const PANELS: Panel[] = [
   // Key: a large overhead softbox. For a mirror-finish metal, panel AREA matters
   // more than panel brightness — a small bright source gives one hot dot and a
   // black band, a big one wraps the whole surface.
-  { size: [26, 26], position: [0, 11, 0], rotation: [-Math.PI / 2, 0, 0], color: "#ffffff", intensity: 3.4 },
+  { size: [26, 26], position: [0, 11, 0], rotation: [-Math.PI / 2, 0, 0], color: "#ffffff", intensity: 5.0 },
   // Front fill, so the surface facing the camera is not reading the dark wall.
-  { size: [20, 14], position: [0, 1, 14], rotation: [0, 0, 0], color: "#eaf0ff", intensity: 1.5 },
+  { size: [20, 14], position: [0, 1, 14], rotation: [0, 0, 0], color: "#eaf0ff", intensity: 2.6 },
   // Left and right verticals: these draw the long specular streaks down the band.
-  { size: [10, 16], position: [-13, 1, 2], rotation: [0, Math.PI / 2, 0], color: "#ffffff", intensity: 2.4 },
-  { size: [10, 16], position: [13, 1, -2], rotation: [0, -Math.PI / 2, 0], color: "#fff2df", intensity: 3.0 },
+  { size: [10, 16], position: [-13, 1, 2], rotation: [0, Math.PI / 2, 0], color: "#ffffff", intensity: 3.6 },
+  { size: [10, 16], position: [13, 1, -2], rotation: [0, -Math.PI / 2, 0], color: "#fff2df", intensity: 4.4 },
   // Floor bounce, so the pavilion has something to return and the underside of
   // the band is not a dead black edge.
-  { size: [22, 22], position: [0, -10, 0], rotation: [Math.PI / 2, 0, 0], color: "#ffffff", intensity: 1.1 },
+  { size: [22, 22], position: [0, -10, 0], rotation: [Math.PI / 2, 0, 0], color: "#ffffff", intensity: 1.8 },
   // A dark card behind, which is what gives the metal an edge rather than an
   // even wash. The contrast between this and the panels IS the specular drawing.
   { size: [22, 18], position: [0, 1, -15], rotation: [0, Math.PI, 0], color: "#0c0c10", intensity: 1 },
@@ -76,48 +77,56 @@ const PANELS: Panel[] = [
 const BLUR = 0.012;
 
 /**
- * A backdrop plane, and the reason it is not optional.
+ * The backdrop, and the reason it is not optional.
  *
  * three's `transmission` is screen-space: it refracts what is actually RENDERED
  * behind the object. With an empty background there is nothing behind the stone
  * to bend, so the gem samples black and reads as a dark pebble no matter how
  * good its ior and dispersion are. Real jewellery photography has the same
- * constraint — nobody shoots a diamond against a void — and the fix is the same
- * one a photographer uses: put a lit surface behind it.
+ * constraint — nobody shoots a diamond against a void.
+ *
+ * It wraps the scene as a sphere rather than standing behind it as a plane. A
+ * plane has edges, and once the camera orbits far enough it sees them: the shot
+ * turns into a lit rectangle floating on black. A sphere has nowhere to end.
  */
 export function buildBackdropTexture(): CanvasTexture {
-  const size = 512;
+  const w = 1024;
+  const h = 512;
   const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext("2d")!;
 
-  const g = ctx.createRadialGradient(size / 2, size * 0.42, size * 0.04, size / 2, size * 0.42, size * 0.62);
-  g.addColorStop(0, "#8d8377");
-  g.addColorStop(0.45, "#4a443d");
-  g.addColorStop(1, "#141312");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, size, size);
+  // A cyclorama, not a card: dark at the poles, lifting towards the horizon,
+  // so wherever the camera turns there is a gradient rather than an edge.
+  const vertical = ctx.createLinearGradient(0, 0, 0, h);
+  vertical.addColorStop(0, "#121214");
+  vertical.addColorStop(0.34, "#4c4740");
+  vertical.addColorStop(0.52, "#6a6156");
+  vertical.addColorStop(0.72, "#3b3730");
+  vertical.addColorStop(1, "#131211");
+  ctx.fillStyle = vertical;
+  ctx.fillRect(0, 0, w, h);
+
+  // Soft pools of light so the stone always has something bright to refract and
+  // the surround never goes flat. Two of them, half a turn apart, because the
+  // camera orbits — one pool leaves the opposite side dead. Painted, not lit:
+  // this is a backdrop, and the actual lighting comes from studio panels.
+  for (const cx of [w * 0.25, w * 0.75]) {
+    const pool = ctx.createRadialGradient(cx, h * 0.5, 0, cx, h * 0.5, w * 0.3);
+    pool.addColorStop(0, "rgba(196,183,164,0.75)");
+    pool.addColorStop(0.55, "rgba(128,118,105,0.3)");
+    pool.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = pool;
+    ctx.fillRect(0, 0, w, h);
+  }
 
   const tex = new CanvasTexture(canvas);
   tex.colorSpace = SRGBColorSpace;
+  tex.mapping = EquirectangularReflectionMapping;
   return tex;
 }
 
-/**
- * A SECOND environment, for the stones only.
- *
- * Metal and gems want opposite light. Metal is a mirror of a whole hemisphere,
- * so it wants a dark surround with a few big sources — that is what gives it
- * shape and a bright edge. A gem is 57 small mirrors pointing every which way,
- * so it wants the opposite: a BRIGHT surround, cut up by hard dark bars, so
- * that neighbouring facets land on wildly different values and the stone reads
- * as a mosaic of light and dark rather than as one tinted shape.
- *
- * A real studio solves this by lighting the stone separately from the setting.
- * three has no light-linking, but `material.envMap` overrides `scene.environment`
- * per material, which comes to the same thing for two pounds of code.
- */
 export function buildGemEnvironment(renderer: WebGLRenderer): Texture {
   const scene = new Scene();
 
@@ -190,7 +199,7 @@ export function buildStudioEnvironment(renderer: WebGLRenderer): Texture {
   // The surround. BackSide so we are inside the box looking at its walls.
   const room = new Mesh(
     new BoxGeometry(40, 30, 40),
-    new MeshBasicMaterial({ color: new Color("#2b2c31"), side: BackSide }),
+    new MeshBasicMaterial({ color: new Color("#3a3b41"), side: BackSide }),
   );
   scene.add(room);
 

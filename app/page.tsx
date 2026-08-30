@@ -70,7 +70,8 @@ export default function Studio3DPage() {
   const design = useDesign((s) => s.design);
   const shown = useEasedDesign(design);
   const fpsRef = useRef<HTMLSpanElement>(null);
-  const [mode, setMode] = useState<GemMode>("specular");
+  const [mode, setMode] = useState<GemMode>("refractive-core");
+  const [exposure, setExposure] = useState(1.35);
   // Read like any other external, unchanging fact about the environment.
   const webgl = useSyncExternalStore(subscribeWebGL, hasWebGL, assumeWebGL);
 
@@ -127,7 +128,7 @@ export default function Studio3DPage() {
             </p>
           </>
         ) : (
-          <RingScene3D design={shown} mode={mode} fpsRef={fpsRef} />
+          <RingScene3D design={shown} mode={mode} exposure={exposure} fpsRef={fpsRef} />
         )}
 
         {/* The canvas is one opaque element to a screen reader, so the design is
@@ -137,38 +138,58 @@ export default function Studio3DPage() {
         <AgentBadge available={available} count={tools.length} tone={webgl ? "dark" : "light"} />
         <ActivityFeed activity={activity} />
 
+        {/* Every canvas control lives in ONE cluster, bottom-right. They used to
+            be split between two corners, which collided with the tools badge as
+            soon as the viewport got narrow. Wrapping keeps them apart on a
+            phone without needing a breakpoint per control. */}
         {webgl && (
-        <div className="absolute right-5 top-5 flex items-center gap-3 text-[11px] text-white/55">
-          <span ref={fpsRef} className="font-mono tabular-nums" title="Frames per second">
-            — fps
-          </span>
-          <div className="flex overflow-hidden rounded-full bg-white/10 backdrop-blur-sm">
-            {(["specular", "refractive", "refract+core"] as const).map((label) => {
-              const value: GemMode =
-                label === "refract+core" ? "refractive-core" : (label as GemMode);
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => setMode(value)}
-                  className={`px-3 py-1.5 transition ${
-                    mode === value ? "bg-white/80 text-stone-900" : "hover:bg-white/20"
-                  }`}
-                  title="How the centre stone is shaded — see GEM_SPECULAR in materials3d.ts"
-                >
-                  {label}
-                </button>
-              );
-            })}
+          <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-wrap items-center justify-end gap-2 text-[11px] text-white/55 sm:inset-x-5 sm:bottom-5">
+            <span className="mr-auto hidden opacity-60 lg:inline">Drag to orbit · scroll to zoom</span>
+
+            <span
+              ref={fpsRef}
+              className="pointer-events-auto rounded-full bg-white/10 px-2.5 py-1.5 font-mono tabular-nums backdrop-blur-sm"
+              title="Frames per second"
+            >
+              — fps
+            </span>
+
+            <label className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+              <span className="opacity-70">light</span>
+              <input
+                type="range"
+                min={0.7}
+                max={2.4}
+                step={0.05}
+                value={exposure}
+                onChange={(e) => setExposure(Number(e.target.value))}
+                aria-label="Studio brightness"
+                className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-white/25 accent-white sm:w-20"
+              />
+            </label>
+
+            <div className="pointer-events-auto flex overflow-hidden rounded-full bg-white/10 backdrop-blur-sm">
+              {(["specular", "refractive", "refract+core"] as const).map((label) => {
+                const value: GemMode =
+                  label === "refract+core" ? "refractive-core" : (label as GemMode);
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setMode(value)}
+                    className={`px-2.5 py-1.5 transition sm:px-3 ${
+                      mode === value ? "bg-white/85 text-stone-900" : "hover:bg-white/20"
+                    }`}
+                    title="How the centre stone is shaded — see GEM_SPECULAR in materials3d.ts"
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
         )}
 
-        {webgl && (
-          <p className="pointer-events-none absolute bottom-5 right-5 text-[11px] text-white/30">
-            Drag to orbit · scroll to zoom
-          </p>
-        )}
       </section>
 
       <aside className="flex w-full shrink-0 flex-col gap-6 border-t border-black/10 bg-[var(--surface)] p-6 lg:h-screen lg:w-[352px] lg:overflow-y-auto lg:border-l lg:border-t-0 lg:p-8">

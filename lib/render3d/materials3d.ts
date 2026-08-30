@@ -13,13 +13,28 @@ import type { Metal, StoneType } from "../design";
 
 export type MetalPbr = { color: string; roughness: number };
 
+/**
+ * Measured-ish reflectance for real alloys, not invented colours.
+ *
+ * The earlier values were picked by eye and read as cartoon for a specific
+ * reason: they were too SATURATED. A metal's colour in a PBR renderer is its
+ * reflectance, and real 18k gold reflects a broad, slightly desaturated warm
+ * spectrum — the vivid orange-yellow people imagine is what you get after the
+ * environment has already been reflected. Starting saturated double-counts it.
+ *
+ * Roughness matters as much as colour: a hand-polished ring is not a perfect
+ * mirror, and a touch of roughness is what turns a hard reflected rectangle
+ * into the soft rolling highlight real jewellery photographs have.
+ */
 export const METAL_PBR: Record<Metal, MetalPbr> = {
-  // Albedo values for polished metal, not the SVG's mid-tone: PBR darkens with
-  // roughness, so a metal's base colour has to start brighter than it renders.
-  yellow: { color: "#F2C14E", roughness: 0.15 },
-  white: { color: "#E4E8EE", roughness: 0.12 },
-  rose: { color: "#EDA98A", roughness: 0.16 },
-  platinum: { color: "#D8DCE2", roughness: 0.21 },
+  // 18k yellow: gold alloyed with silver and copper, so paler than pure gold.
+  yellow: { color: "#E3C078", roughness: 0.17 },
+  // White gold is rhodium-plated, which is why it reads cooler than platinum.
+  white: { color: "#E9EAEC", roughness: 0.13 },
+  // 18k rose takes its colour from copper — warm, but far less pink than it looks.
+  rose: { color: "#E0AE93", roughness: 0.18 },
+  // Platinum is denser and greyer than white gold, and never quite as bright.
+  platinum: { color: "#CFD0D2", roughness: 0.22 },
 };
 
 export type GemPbr = {
