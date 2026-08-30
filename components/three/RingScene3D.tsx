@@ -31,7 +31,12 @@ import {
 import type { DesignState } from "@/lib/design";
 import { registerStudioCapture } from "@/lib/capture";
 import { VIEWS, viewFor } from "@/lib/render3d/scene";
-import { buildBackdropTexture, buildGemEnvironment, buildStudioEnvironment } from "@/lib/render3d/studio";
+import {
+  buildBackdropTexture,
+  buildGemEnvironment,
+  buildStudioEnvironment,
+  type BackdropTone,
+} from "@/lib/render3d/studio";
 import { Ring3D, type GemMode } from "./Ring3D";
 
 const TMP = new Vector3();
@@ -175,8 +180,8 @@ function HiddenTabTick() {
 }
 
 /** See buildBackdropTexture: without something behind it, a transmissive gem is black. */
-function Backdrop() {
-  const map = useMemo(() => buildBackdropTexture(), []);
+function Backdrop({ tone }: { tone: BackdropTone }) {
+  const map = useMemo(() => buildBackdropTexture(tone), [tone]);
   useEffect(() => () => map.dispose(), [map]);
   return (
     <mesh scale={[-1, 1, 1]}>
@@ -358,6 +363,8 @@ export function RingScene3D({
   design,
   mode,
   exposure,
+  tone,
+  spinning,
   fpsRef,
   onDragChange,
 }: {
@@ -366,6 +373,10 @@ export function RingScene3D({
   /** Renderer exposure. The one light control worth exposing: it moves the
    *  whole studio together instead of letting individual lamps drift apart. */
   exposure: number;
+  /** The paper behind the ring. Backdrop only — the lights do not move. */
+  tone: BackdropTone;
+  /** Turntable: orbits the camera slowly so the ring can be watched rather than driven. */
+  spinning: boolean;
   fpsRef: React.RefObject<HTMLSpanElement | null>;
   /** Raised while a stone is being dragged, so the page can stop easing. */
   onDragChange: (dragging: boolean) => void;
@@ -390,7 +401,7 @@ export function RingScene3D({
       }}
     >
       <Exposure value={exposure} />
-      <Backdrop />
+      <Backdrop tone={tone} />
 
       <group ref={ring}>
         <Ring3D
@@ -404,6 +415,12 @@ export function RingScene3D({
 
       <OrbitControls
         makeDefault
+        /* The turntable. drei already calls update() every frame because
+           damping is on, so this needs no loop of its own — and orbiting the
+           CAMERA rather than spinning the ring keeps the view rig's quaternion
+           the single owner of the ring's orientation. */
+        autoRotate={spinning}
+        autoRotateSpeed={0.9}
         enablePan={false}
         minDistance={22}
         maxDistance={120}

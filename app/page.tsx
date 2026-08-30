@@ -7,6 +7,11 @@ import { ActivityFeed, AgentBadge, PriceBreakdown } from "@/components/AgentOver
 import { Controls } from "@/components/Controls";
 import { useEasedDesign } from "@/components/useEasedDesign";
 import type { GemMode } from "@/components/three/Ring3D";
+import {
+  BACKDROP_LABEL,
+  BACKDROP_TONES,
+  type BackdropTone,
+} from "@/lib/render3d/studio";
 import { describeDesign } from "@/lib/describe";
 import { assumeWebGL, hasWebGL, subscribeWebGL } from "@/lib/webgl";
 import { initialDesign } from "@/lib/design";
@@ -78,6 +83,8 @@ export default function Studio3DPage() {
   // polish map spreads the highlight rather than concentrating it, so the
   // setting that looked right before the two of them lands hot.
   const [exposure, setExposure] = useState(1.35);
+  const [tone, setTone] = useState<BackdropTone>("studio");
+  const [spinning, setSpinning] = useState(false);
   // Read like any other external, unchanging fact about the environment.
   const webgl = useSyncExternalStore(subscribeWebGL, hasWebGL, assumeWebGL);
 
@@ -138,6 +145,8 @@ export default function Studio3DPage() {
             design={shown}
             mode={mode}
             exposure={exposure}
+            tone={tone}
+            spinning={spinning}
             fpsRef={fpsRef}
             onDragChange={setDragging}
           />
@@ -159,19 +168,70 @@ export default function Studio3DPage() {
             tools badge: these float over the lit studio, not over the page. */}
         {webgl && (
           <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-wrap items-center justify-end gap-2 text-[11px] text-white/75 sm:inset-x-5 sm:bottom-5">
-            <span className="mr-auto hidden opacity-70 [text-shadow:0_1px_3px_rgb(0_0_0/0.65)] lg:inline">
+            {/* On its own pill like everything else in the row. A text shadow
+                was enough over the studio sweep and vanished the moment the
+                backdrop could be switched to white. */}
+            <span className="mr-auto hidden rounded-full bg-black/60 px-3 py-1.5 ring-1 ring-white/10 backdrop-blur-md lg:inline">
               Drag to orbit · scroll to zoom
             </span>
 
             <span
               ref={fpsRef}
-              className="pointer-events-auto rounded-full bg-black/45 px-2.5 py-1.5 font-mono tabular-nums ring-1 ring-white/10 backdrop-blur-md"
+              className="pointer-events-auto rounded-full bg-black/60 px-2.5 py-1.5 font-mono tabular-nums ring-1 ring-white/10 backdrop-blur-md"
               title="Frames per second"
             >
               — fps
             </span>
 
-            <label className="pointer-events-auto flex items-center gap-2 rounded-full bg-black/45 px-3 py-1.5 ring-1 ring-white/10 backdrop-blur-md">
+            {/* Two viewing controls that change nothing about the ring: a
+                turntable, and the paper behind it. Grouped away from the
+                design panel on purpose — this is how you LOOK at the ring, not
+                what the ring is, and nothing here reaches the store or the
+                order payload. */}
+            <div className="pointer-events-auto flex overflow-hidden rounded-full bg-black/60 ring-1 ring-white/10 backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => setSpinning((v) => !v)}
+                aria-pressed={spinning}
+                title={spinning ? "Stop the turntable" : "Turn the ring slowly"}
+                className={`px-2.5 py-1.5 transition ${
+                  spinning ? "bg-white/90 text-stone-900" : "hover:bg-white/15"
+                }`}
+              >
+                <svg viewBox="0 0 12 12" aria-hidden className="h-3 w-3">
+                  {spinning ? (
+                    <path d="M3 2h2.2v8H3zM6.8 2H9v8H6.8z" fill="currentColor" />
+                  ) : (
+                    <path d="M3.2 1.8l6.4 4.2-6.4 4.2z" fill="currentColor" />
+                  )}
+                </svg>
+                <span className="sr-only">Turntable</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setTone(
+                    (t) => BACKDROP_TONES[(BACKDROP_TONES.indexOf(t) + 1) % BACKDROP_TONES.length],
+                  )
+                }
+                title={`Backdrop: ${BACKDROP_LABEL[tone]} — click to change`}
+                className="px-2.5 py-1.5 transition hover:bg-white/15"
+              >
+                <svg viewBox="0 0 12 12" aria-hidden className="h-3 w-3">
+                  <path
+                    d="M1 3h2.1l1.4 1.8M11 3H8.9L5.2 8H1M11 9H8.9L7.6 7.3"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
+                  <path d="M9.4 1.6L11.4 3 9.4 4.4zM9.4 7.6L11.4 9 9.4 10.4z" fill="currentColor" />
+                </svg>
+                <span className="sr-only">Change the backdrop</span>
+              </button>
+            </div>
+
+            <label className="pointer-events-auto flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 ring-1 ring-white/10 backdrop-blur-md">
               <span className="opacity-75">light</span>
               <input
                 type="range"
@@ -185,7 +245,7 @@ export default function Studio3DPage() {
               />
             </label>
 
-            <div className="pointer-events-auto flex overflow-hidden rounded-full bg-black/45 ring-1 ring-white/10 backdrop-blur-md">
+            <div className="pointer-events-auto flex overflow-hidden rounded-full bg-black/60 ring-1 ring-white/10 backdrop-blur-md">
               {(["specular", "refractive", "refract+core"] as const).map((label) => {
                 const value: GemMode =
                   label === "refract+core" ? "refractive-core" : (label as GemMode);

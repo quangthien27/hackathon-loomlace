@@ -80,7 +80,7 @@ export function AgentBadge({
   }, [open]);
 
   const pill = dark
-    ? "bg-black/45 ring-1 ring-white/10 text-white/85"
+    ? "bg-black/60 ring-1 ring-white/10 text-white/85"
     : "bg-black/[0.055] ring-1 ring-black/5";
   // Heavier than the pill. It carries a paragraph of small text rather than one
   // line, and it sits over whichever part of the studio happens to be brightest.
@@ -103,7 +103,7 @@ export function AgentBadge({
         aria-expanded={open}
         aria-label={available ? "Show the tools registered with your agent" : undefined}
         className={`pointer-events-auto flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur-md transition ${pill} ${
-          available ? (dark ? "hover:bg-black/60" : "hover:bg-black/10") : "cursor-default"
+          available ? (dark ? "hover:bg-black/75" : "hover:bg-black/10") : "cursor-default"
         }`}
       >
         <span

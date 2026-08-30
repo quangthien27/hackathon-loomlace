@@ -89,22 +89,92 @@ const BLUR = 0.012;
  * plane has edges, and once the camera orbits far enough it sees them: the shot
  * turns into a lit rectangle floating on black. A sphere has nowhere to end.
  */
-export function buildBackdropTexture(): CanvasTexture {
+/**
+ * The sweeps on offer, the way a photographer keeps a few rolls of paper.
+ *
+ * Only the BACKDROP changes. The lights above do not, which is deliberate: the
+ * metal's reflections come from the PMREM environment, so swapping the paper
+ * changes the mood and what the stone refracts without re-lighting the shoot
+ * and sending every carefully-set panel intensity out of balance.
+ *
+ * `stops` runs pole to pole; `pool` is the pair of soft lights painted on it.
+ */
+export type BackdropTone = "studio" | "white" | "warm" | "noir";
+
+export const BACKDROP_TONES: BackdropTone[] = ["studio", "white", "warm", "noir"];
+
+export const BACKDROP_LABEL: Record<BackdropTone, string> = {
+  studio: "studio grey",
+  white: "white sweep",
+  warm: "warm amber",
+  noir: "noir",
+};
+
+const TONES: Record<
+  BackdropTone,
+  { stops: [number, string][]; pool: [string, string] }
+> = {
+  // The original: a warm neutral, dark at the poles, lifting to the horizon.
+  studio: {
+    stops: [
+      [0, "#26252a"],
+      [0.32, "#6f685e"],
+      [0.5, "#8d8478"],
+      [0.72, "#5a544b"],
+      [1, "#232120"],
+    ],
+    pool: ["rgba(222,211,193,0.8)", "rgba(160,149,133,0.34)"],
+  },
+  // High key. Bright, almost shadowless — the catalogue look, and the one that
+  // shows a metal's true colour rather than the room's.
+  white: {
+    stops: [
+      [0, "#b9b8b6"],
+      [0.3, "#e6e5e2"],
+      [0.5, "#f4f3f1"],
+      [0.74, "#dcdad6"],
+      [1, "#a9a7a4"],
+    ],
+    pool: ["rgba(255,255,255,0.85)", "rgba(236,235,232,0.4)"],
+  },
+  // Warm amber, which is what gold is usually shot against — the surround pushes
+  // the same direction as the metal instead of fighting it.
+  warm: {
+    stops: [
+      [0, "#3a2a15"],
+      [0.3, "#9a7238"],
+      [0.5, "#c79a4e"],
+      [0.72, "#7d5a2b"],
+      [1, "#2c1f0f"],
+    ],
+    pool: ["rgba(255,226,168,0.82)", "rgba(196,152,84,0.36)"],
+  },
+  // Near-black, for the shot where the stone is the only bright thing in frame.
+  noir: {
+    stops: [
+      [0, "#0a0a0c"],
+      [0.34, "#1c1c20"],
+      [0.5, "#2a2a30"],
+      [0.72, "#17171b"],
+      [1, "#070708"],
+    ],
+    pool: ["rgba(120,124,138,0.5)", "rgba(60,62,72,0.28)"],
+  },
+};
+
+export function buildBackdropTexture(tone: BackdropTone = "studio"): CanvasTexture {
   const w = 1024;
   const h = 512;
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d")!;
+  const spec = TONES[tone] ?? TONES.studio;
 
   // A cyclorama, not a card: dark at the poles, lifting towards the horizon,
   // so wherever the camera turns there is a gradient rather than an edge.
   const vertical = ctx.createLinearGradient(0, 0, 0, h);
-  vertical.addColorStop(0, "#26252a");
-  vertical.addColorStop(0.32, "#6f685e");
-  vertical.addColorStop(0.5, "#8d8478");
-  vertical.addColorStop(0.72, "#5a544b");
-  vertical.addColorStop(1, "#232120");
+  for (const [at, colour] of spec.stops) vertical.addColorStop(at, colour);
   ctx.fillStyle = vertical;
   ctx.fillRect(0, 0, w, h);
 
@@ -114,8 +184,8 @@ export function buildBackdropTexture(): CanvasTexture {
   // this is a backdrop, and the actual lighting comes from studio panels.
   for (const cx of [w * 0.25, w * 0.75]) {
     const pool = ctx.createRadialGradient(cx, h * 0.5, 0, cx, h * 0.5, w * 0.3);
-    pool.addColorStop(0, "rgba(222,211,193,0.8)");
-    pool.addColorStop(0.55, "rgba(160,149,133,0.34)");
+    pool.addColorStop(0, spec.pool[0]);
+    pool.addColorStop(0.55, spec.pool[1]);
     pool.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = pool;
     ctx.fillRect(0, 0, w, h);
