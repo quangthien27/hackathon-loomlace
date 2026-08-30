@@ -8,7 +8,7 @@ import { Controls } from "@/components/Controls";
 import { useEasedDesign } from "@/components/useEasedDesign";
 import type { GemMode } from "@/components/three/Ring3D";
 import { describeDesign } from "@/lib/describe";
-import { assumeWebGL, hasWebGL } from "@/lib/webgl";
+import { assumeWebGL, hasWebGL, subscribeWebGL } from "@/lib/webgl";
 import { initialDesign } from "@/lib/design";
 import { installMockModelContext } from "@/lib/mock-model-context";
 import { loadDesign, scheduleSave } from "@/lib/persist";
@@ -72,7 +72,7 @@ export default function Studio3DPage() {
   const fpsRef = useRef<HTMLSpanElement>(null);
   const [mode, setMode] = useState<GemMode>("specular");
   // Read like any other external, unchanging fact about the environment.
-  const webgl = useSyncExternalStore(noSubscribe, hasWebGL, assumeWebGL);
+  const webgl = useSyncExternalStore(subscribeWebGL, hasWebGL, assumeWebGL);
 
   const available = useSyncExternalStore(noSubscribe, isWebMcpAvailable, returnFalse);
   const tools = useSyncExternalStore(subscribeRegistry, registeredNames, emptyList);
@@ -93,8 +93,11 @@ export default function Studio3DPage() {
   useEffect(() => {
     let cancelled = false;
     void loadDesign().then((saved) => {
+      if (cancelled) return; // a superseded mount must not claim the restore
       const untouched = useDesign.getState().design === initialDesign;
-      if (!cancelled && saved && untouched) useDesign.getState().replace(saved);
+      if (saved && untouched) useDesign.getState().replace(saved);
+      // Only now may saving begin: flipping this on a cancelled pass would let
+      // the next design change overwrite good data with the default design.
       restored.current = true;
     });
     return () => {
@@ -112,13 +115,13 @@ export default function Studio3DPage() {
     <div className="flex min-h-full flex-col lg:h-screen lg:flex-row lg:overflow-hidden">
       <section
         className={`relative flex min-h-[52vh] flex-1 items-center justify-center lg:min-h-0 ${
-          !webgl ? "bg-[var(--canvas)]" : "bg-[#141312]"
+          !webgl ? "bg-[var(--surface)]" : "bg-[#141312]"
         }`}
       >
         {!webgl ? (
           <>
             <FlatFallback design={shown} onMoveStone={() => {}} />
-            <p className="absolute left-1/2 top-5 w-[min(92%,32rem)] -translate-x-1/2 rounded-lg bg-amber-100/90 px-3 py-2 text-center text-[11.5px] leading-snug text-amber-950 shadow-sm">
+            <p className="absolute bottom-5 left-1/2 w-[min(92%,32rem)] -translate-x-1/2 rounded-lg bg-amber-100/90 px-3 py-2 text-center text-[11.5px] leading-snug text-amber-950 shadow-sm">
               This browser has no WebGL, so the ring is shown flat. Every control and every agent
               tool still works — only the 3D view is unavailable.
             </p>
@@ -131,7 +134,7 @@ export default function Studio3DPage() {
             described in text alongside it. */}
         <p className="sr-only" role="img" aria-label={describeDesign(design)} />
 
-        <AgentBadge available={available} count={tools.length} tone="dark" />
+        <AgentBadge available={available} count={tools.length} tone={webgl ? "dark" : "light"} />
         <ActivityFeed activity={activity} />
 
         {webgl && (

@@ -61,8 +61,11 @@ export default function Page() {
   useEffect(() => {
     let cancelled = false;
     void loadDesign().then((saved) => {
+      if (cancelled) return; // a superseded mount must not claim the restore
       const untouched = useDesign.getState().design === initialDesign;
-      if (!cancelled && saved && untouched) useDesign.getState().replace(saved);
+      if (saved && untouched) useDesign.getState().replace(saved);
+      // Only now may saving begin: flipping this on a cancelled pass would let
+      // the next design change overwrite good data with the default design.
       restored.current = true;
     });
     return () => {

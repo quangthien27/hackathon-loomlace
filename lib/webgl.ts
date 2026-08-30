@@ -27,8 +27,30 @@ export function hasWebGL(): boolean {
  *  guessing "no" would render the fallback into the HTML and flash it away. */
 export const assumeWebGL = () => true;
 
+/**
+ * Nudges React to re-read the snapshot once after mount.
+ *
+ * The value never changes, so the obvious `subscribe` is a no-op — but then the
+ * only client read is during hydration, which is served the SERVER snapshot,
+ * and a browser without WebGL would keep rendering the 3D branch forever. One
+ * scheduled callback forces exactly one re-read at the moment `document` is
+ * available to be asked.
+ */
+export function subscribeWebGL(onChange: () => void): () => void {
+  const id = setTimeout(onChange, 0);
+  return () => clearTimeout(id);
+}
+
 function detect(): boolean {
   if (typeof document === "undefined") return true;
+
+  // `?nowebgl=1` forces the flat fallback. It can only ever DOWNGRADE the
+  // renderer, never claim support that isn't there, so it is safe to leave in
+  // the deployed build — and it is the only practical way to check what the
+  // fallback looks like on a device whose browser does support WebGL.
+  if (typeof location !== "undefined" && new URLSearchParams(location.search).has("nowebgl"))
+    return false;
+
   try {
     const canvas = document.createElement("canvas");
     const gl =
