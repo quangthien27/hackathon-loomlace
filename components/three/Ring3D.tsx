@@ -8,6 +8,7 @@ import {
   ExtrudeGeometry,
   type Group,
   LatheGeometry,
+  Quaternion,
   Shape,
   type Texture,
   TubeGeometry,
@@ -260,12 +261,26 @@ function Rail({
 }
 
 /**
- * Four claws, each running from a bead folded over the crown all the way DOWN
- * to the band.
+ * The scale the basket closes down to at the band.
  *
- * `seatDepth` is what makes that possible: without it the shafts were a fixed
- * multiple of the stone's radius and simply stopped in mid-air above the shank,
- * which is what made the whole setting look like it was hovering.
+ * Shared with the bezel's skirt so the two settings sit on the same footprint —
+ * which is also roughly where the pavilion has narrowed to by the time it
+ * reaches the shank, so the metal follows the stone rather than enclosing air.
+ */
+const BASKET_FOOT = 0.42;
+
+/**
+ * Four claws, each running from a bead folded over the crown down to a small
+ * gallery ring on the band — a tapered basket, not four upright posts.
+ *
+ * The shafts LEAN: they start on the girdle outline and converge to
+ * BASKET_FOOT. Vertical posts standing on a rail as wide as the stone read as
+ * scaffolding under it, and they enclose a cylinder of empty air that a
+ * pavilion never fills. Angling them in is both what a real head does and what
+ * makes the setting read as one piece with the bezel's silhouette.
+ *
+ * `seatDepth` is what lets any of this land: without it the shafts were a fixed
+ * multiple of the stone's radius and simply stopped in mid-air above the shank.
  */
 function Claws({
   cut,
@@ -284,13 +299,13 @@ function Claws({
   const beadY = radius * 0.26;
 
   /**
-   * How far down a claw has to reach at a given sideways offset.
+   * How far down the metal has to reach at a given sideways offset.
    *
    * `seatDepth` is only the distance to the band directly under the stone's
-   * axis. The band is a CYLINDER, so it curves away to either side, and a claw
-   * standing a couple of millimetres off-axis has further to travel. Cutting
-   * every claw to the same length is why the stone appeared to touch the shank
-   * at its culet and nowhere else — the four posts stopped short in mid-air.
+   * axis. The band is a CYLINDER, so it curves away to either side and a claw
+   * standing off-axis has further to travel. Cutting every claw to the same
+   * length is why the stone once appeared to touch the shank at its culet and
+   * nowhere else.
    */
   const seatRadius = outerR + seatDepth;
   const footAt = (offset: number) =>
@@ -302,14 +317,24 @@ function Claws({
   return (
     <group>
       {clawAnchors(cut, radius).map(([x, z], i) => {
-        const px = x * 1.02;
-        const pz = z * 1.02;
-        const footY = footAt(px) - bite;
-        const shaftH = beadY - footY;
+        const top = new Vector3(x * 1.02, beadY, z * 1.02);
+        const footX = x * BASKET_FOOT;
+        const footZ = z * BASKET_FOOT;
+        const bottom = new Vector3(footX, footAt(footX) - bite, footZ);
+
+        const axis = new Vector3().subVectors(top, bottom);
+        const length = axis.length();
+        // A cylinder is built along +Y; rotate that onto the shaft's own line.
+        const orientation = new Quaternion().setFromUnitVectors(
+          UP,
+          axis.clone().normalize(),
+        );
+        const middle = new Vector3().addVectors(top, bottom).multiplyScalar(0.5);
+
         return (
           <group key={i}>
-            <mesh position={[px, (beadY + footY) / 2, pz]}>
-              <cylinderGeometry args={[radius * 0.085, radius * 0.15, shaftH, 12]} />
+            <mesh position={middle} quaternion={orientation}>
+              <cylinderGeometry args={[radius * 0.085, radius * 0.13, length, 12]} />
               <MetalMat metal={metal} />
             </mesh>
             {/* The bead sits just inboard of the shaft, folded over the crown —
@@ -321,15 +346,13 @@ function Claws({
           </group>
         );
       })}
-      {/* Gallery rail, laid along the band at the same radius the shafts stand
-          on, so the basket closes where the claws land instead of hovering
-          somewhere above them. */}
+      {/* The gallery ring the shafts stand on, laid along the band's curve. */}
       <Rail
         cut={cut}
         radius={radius}
-        scale={1.02}
+        scale={BASKET_FOOT}
         y={-seatDepth}
-        tube={radius * 0.075}
+        tube={radius * 0.06}
         metal={metal}
         bandOuterR={outerR}
         bandSeatDepth={seatDepth}
@@ -382,7 +405,7 @@ function Bezel({
   // run to a point. A cone touching the shank at a single vertex reads as a
   // spike balanced on the ring; a real under-bezel is sawn off and soldered on
   // a face. The cut sits a little inside the metal so the joint closes.
-  const footScale = 0.42;
+  const footScale = BASKET_FOOT;
   const skirt = useMemo(
     () => loftedSkirt(cut, radius, 1.13, wallBottom, footScale, -seatDepth - radius * 0.06, true),
     [cut, radius, wallBottom, seatDepth, footScale],
@@ -466,6 +489,8 @@ function CentreProbe() {
 }
 
 const PROBE = new Vector3();
+/** A cylinder's own axis, for rotating shafts onto an arbitrary line. */
+const UP = new Vector3(0, 1, 0);
 
 /* ─────────────────────────────── the ring ─────────────────────────────── */
 
