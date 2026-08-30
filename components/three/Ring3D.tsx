@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { useThree } from "@react-three/fiber";
-import { BackSide, ExtrudeGeometry, LatheGeometry, Shape, type Texture } from "three";
+import { useEffect, useMemo, useRef } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { BackSide, ExtrudeGeometry, type Group, LatheGeometry, Shape, type Texture, Vector3 } from "three";
 import { centreStone, type DesignState, type Metal, type Stone, type StoneType } from "@/lib/design";
 import {
   bandProfile,
@@ -16,6 +16,7 @@ import {
 import { GEM_CORE, GEM_PBR, GEM_SPECULAR, MELEE_PBR, METAL_PBR } from "@/lib/render3d/materials3d";
 import { buildEngravingTexture } from "@/lib/render3d/engraving3d";
 import { bandDims, haloRing, paveRun, placeStone } from "@/lib/render3d/scene";
+import { useStoneDrag } from "./useStoneDrag";
 
 /**
  * How the centre stone is rendered. Neither option is "right": see GEM_SPECULAR.
@@ -292,10 +293,47 @@ function Halo({ cut, radius, metal, env }: { cut: GemCut; radius: number; metal:
   );
 }
 
+/**
+ * Reports where the centre stone actually lands on screen — DEV ONLY.
+ *
+ * Without this, testing a drag means guessing at pixel coordinates, and a
+ * pointerdown that misses the stone is not inert: it falls through to the orbit
+ * controls and spins the camera, which invalidates every subsequent guess.
+ */
+function CentreProbe() {
+  const ref = useRef<Group>(null);
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  useFrame(() => {
+    if (process.env.NODE_ENV !== "development" || !ref.current) return;
+    const p = ref.current.getWorldPosition(PROBE).project(camera);
+    document.documentElement.dataset.centreStone = JSON.stringify({
+      x: Math.round(((p.x + 1) / 2) * size.width),
+      y: Math.round(((1 - p.y) / 2) * size.height),
+    });
+  });
+  return <group ref={ref} />;
+}
+
+const PROBE = new Vector3();
+
 /* ─────────────────────────────── the ring ─────────────────────────────── */
 
-export function Ring3D({ design, mode, gemEnv }: { design: DesignState; mode: GemMode; gemEnv: Texture | null }) {
+export function Ring3D({
+  design,
+  mode,
+  gemEnv,
+  ringRef,
+  onDragChange,
+}: {
+  design: DesignState;
+  mode: GemMode;
+  gemEnv: Texture | null;
+  ringRef: React.RefObject<Group | null>;
+  onDragChange: (dragging: boolean) => void;
+}) {
   const centre = centreStone(design);
+  const drag = useStoneDrag(ringRef);
 
   return (
     <group>
@@ -332,7 +370,15 @@ export function Ring3D({ design, mode, gemEnv }: { design: DesignState; mode: Ge
         return (
           <group key={stone.id} rotation-y={p.angle}>
             {/* rotation-x turns the gem's table normal to point radially outward. */}
-            <group position={[0, p.axial, p.radial]} rotation-x={Math.PI / 2}>
+            <group
+              position={[0, p.axial, p.radial]}
+              rotation-x={Math.PI / 2}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (drag.begin(stone.id, e.clientX, e.clientY)) onDragChange(true);
+              }}
+              onPointerUp={() => onDragChange(false)}
+            >
               {isCentre && design.setting === "solitaire" && (
                 <Claws cut={cut} radius={p.radius} metal={design.band.metal} />
               )}
@@ -346,6 +392,7 @@ export function Ring3D({ design, mode, gemEnv }: { design: DesignState; mode: Ge
                 <Halo cut={cut} radius={p.radius} metal={design.band.metal} env={gemEnv} />
               )}
               <Gem cut={cut} type={stone.type} radius={p.radius} mode={mode} env={gemEnv} />
+              {isCentre && <CentreProbe />}
             </group>
           </group>
         );

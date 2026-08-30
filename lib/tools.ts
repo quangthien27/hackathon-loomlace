@@ -153,8 +153,10 @@ export const coreTools: ModelContextTool[] = [
       "normalised 0 to 1. x is the position AROUND the band's circumference: 0.5 is dead " +
       "centre (the front of the finger), lower values move left, higher values move right — " +
       "a three-stone trellis might sit at x = 0.4, 0.5, 0.6. y is the position ACROSS the " +
-      "band's width: 0 is the inner edge nearest the finger, 1 is the outer edge, 0.5 is " +
-      "centred. A classic solitaire sits at x=0.5, y=0.5. sizeMm is the stone's diameter in " +
+      "band's face, along the finger: 0 and 1 are the band's two edges and 0.5 is centred. " +
+      "y only has as much room to move as the band is wide, so on a slim band it is a fine " +
+      "adjustment rather than a dramatic one — prefer x for anything meant to read at a " +
+      "glance. A classic solitaire sits at x=0.5, y=0.5. sizeMm is the stone's diameter in " +
       "millimetres, from 1.5 (a pavé speck) to 12 (a bold statement centre stone) — 6.5mm is " +
       "a typical solitaire. type is the gem material (diamond/sapphire/emerald/ruby) and cut " +
       "is its shape (round/oval/emerald/princess) — these are independent, so type=emerald " +

@@ -17,6 +17,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Group, NeutralToneMapping, PerspectiveCamera, type Texture, Vector3 } from "three";
 import type { DesignState } from "@/lib/design";
+import { useDesign } from "@/lib/store";
 import { bandDims, VIEWS } from "@/lib/render3d/scene";
 import { buildBackdropTexture, buildGemEnvironment, buildStudioEnvironment } from "@/lib/render3d/studio";
 import { Ring3D, type GemMode } from "./Ring3D";
@@ -167,7 +168,7 @@ function Backdrop() {
 }
 
 export function RingScene3D({
-  design,
+  design: eased,
   mode,
   fpsRef,
 }: {
@@ -176,6 +177,12 @@ export function RingScene3D({
   fpsRef: React.RefObject<HTMLSpanElement | null>;
 }) {
   const ring = useRef<Group>(null);
+  const [dragging, setDragging] = useState(false);
+  const live = useDesign((s) => s.design);
+  // A drag must track the cursor 1:1. Easing the rendered design would restart
+  // a 420ms tween on every pointermove, so the stone would trail the finger and
+  // keep sliding after release — the same trap the SVG canvas had.
+  const design = dragging ? live : eased;
   // Built inside onCreated because it needs the renderer; held in state so the
   // gem materials pick it up on the next render.
   const [gemEnv, setGemEnv] = useState<Texture | null>(null);
@@ -201,7 +208,13 @@ export function RingScene3D({
       <Backdrop />
 
       <group ref={ring}>
-        <Ring3D design={design} mode={mode} gemEnv={gemEnv} />
+        <Ring3D
+          design={design}
+          mode={mode}
+          gemEnv={gemEnv}
+          ringRef={ring}
+          onDragChange={setDragging}
+        />
       </group>
 
       {design.view !== "inside" && (

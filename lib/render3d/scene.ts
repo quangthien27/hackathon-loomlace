@@ -75,7 +75,11 @@ export function placeStone(design: DesignState, stone: Stone, isCentre: boolean)
   return {
     angle: stoneAngle(stone.x),
     radial: outerR + seated,
-    axial: (stone.y - 0.5) * width * 0.55,
+    // The FULL band width, not a fraction of it. Squeezing the range made `y`
+    // a parameter the agent could set and nobody could see; a stone that can
+    // actually reach the band's edge is at least a real design move, and on a
+    // wide band with a small accent stone it is a visible one.
+    axial: (stone.y - 0.5) * width,
     radius,
   };
 }
@@ -104,7 +108,7 @@ export function paveRun(design: DesignState, centre: Stone) {
       angle: stoneAngle(x),
       // Set INTO the metal: the girdle sits just proud of the band's surface.
       radial: outerR + radius * 0.34,
-      axial: (centre.y - 0.5) * design.band.widthMm * 0.55,
+      axial: (centre.y - 0.5) * design.band.widthMm,
       radius,
     };
   });
