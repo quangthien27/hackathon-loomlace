@@ -36,7 +36,19 @@ const ARC_FRACTION = 0.42;
  * u = 0 is directly under the stone and u = 0.5 is the bottom of the shank —
  * where an engraving belongs, and where the 'inside' camera is looking.
  */
-const CENTRE_U = 0.5;
+const INSIDE_U = 0.5;
+
+/**
+ * Outside engraving sits on the SIDE of the shank, not its underside.
+ *
+ * The two placements want different positions because they are read from
+ * different directions. Inside text is seen through the bore, so it belongs at
+ * the bottom where the far wall faces the camera. Outside text is on the band's
+ * outer face — which at the bottom of the ring points down and away from every
+ * useful camera — so it goes round to the flank, where the hero view sees it
+ * square on.
+ */
+const OUTSIDE_U = 0.78;
 
 /**
  * The inner surface is traversed from +width/2 down to -width/2 (see
@@ -144,7 +156,7 @@ export function buildEngravingTexture(
   ctx.filter = "blur(2.2px)";
 
   ctx.save();
-  ctx.translate(CENTRE_U * WIDTH, stripTop + stripHeight / 2);
+  ctx.translate((inside ? INSIDE_U : OUTSIDE_U) * WIDTH, stripTop + stripHeight / 2);
   if (inside) ctx.scale(INSIDE_MIRROR_X ? -1 : 1, INSIDE_MIRROR_Y ? -1 : 1);
   ctx.fillText(engraving.text, 0, 0);
   ctx.restore();

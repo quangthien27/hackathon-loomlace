@@ -513,7 +513,9 @@ export const engravingTool: ModelContextTool = {
       font: (i.font as "serif" | "script" | undefined) ?? "serif",
       placement,
     });
-    useDesign.getState().setView(placement === "outside" ? "side" : "inside");
+    // Outside text is on the band's flank, which the hero three-quarter sees
+    // square on; the inside view looks through the bore at the far wall.
+    useDesign.getState().setView(placement === "outside" ? "top" : "inside");
     return ok(`Engraved "${text}" on the ${placement} of the band.`);
   },
 };
