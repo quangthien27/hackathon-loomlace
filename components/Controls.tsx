@@ -2,7 +2,7 @@
 
 import type { Cut, DesignState, Metal, Profile, Setting, StoneType, View } from "@/lib/design";
 import { BAND_MAX_MM, BAND_MIN_MM, centreStone, STONE_MAX_MM, STONE_MIN_MM } from "@/lib/design";
-import { METAL, STONE } from "@/lib/render/materials";
+import { METAL, STONE, STONE_SWATCH } from "@/lib/render/materials";
 import { PRESET_BLURB, PRESET_NAMES, type PresetName } from "@/lib/presets";
 import { useDesign } from "@/lib/store";
 
@@ -140,9 +140,7 @@ export function Controls({ design }: { design: DesignState }) {
               value={centre.type}
               onChange={(t) => s.placeStone({ id: centre.id, type: t })}
               label={(t) => STONE[t].label}
-              swatch={(t) =>
-                `radial-gradient(circle at 34% 26%, ${STONE[t].highlight} 0%, ${STONE[t].light} 22%, ${STONE[t].base} 58%, ${STONE[t].deep} 100%)`
-              }
+              swatch={(t) => STONE_SWATCH[t]}
             />
           </Group>
 

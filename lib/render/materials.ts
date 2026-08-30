@@ -109,3 +109,22 @@ export const SURFACE = {
   canvasToDark: "#0E0D0C",
   contactShadow: "rgba(60, 44, 24, 0.28)",
 } as const;
+
+/**
+ * SWATCH-ONLY stone colours, for the picker in the sidebar. NOT the canvas.
+ *
+ * The ramps above are lit: `highlight` is a specular point and `deep` is an
+ * occlusion, which is right for shading facets and wrong for a flat tile. Built
+ * from them, a swatch got a bright blob at one third across and a muddy edge —
+ * the two things that read as cartoon rather than as a jewel.
+ *
+ * These are chosen as pigments instead: saturated through the middle, dark
+ * rather than grey at the bottom, and on the same 150deg sweep as the metal
+ * tiles so the two grids look like one control.
+ */
+export const STONE_SWATCH: Record<StoneType, string> = {
+  diamond: "linear-gradient(150deg, #FFFFFF 0%, #EAF2FA 26%, #C6D6E8 58%, #93A9C0 100%)",
+  sapphire: "linear-gradient(150deg, #8FC0FF 0%, #3D7BE0 26%, #1B44A8 58%, #0C1E52 100%)",
+  emerald: "linear-gradient(150deg, #8FEFC4 0%, #2FBE8B 26%, #0F8560 58%, #063A2C 100%)",
+  ruby: "linear-gradient(150deg, #FFB3C4 0%, #E85177 26%, #B01340 58%, #4E0819 100%)",
+};

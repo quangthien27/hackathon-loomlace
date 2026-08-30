@@ -59,11 +59,16 @@ input[type="range"]::-webkit-slider-thumb {
  * section divider rather than as something draggable — a real report from the
  * first person to look at the sidebar. The filled portion is driven by a
  * --fill custom property set from React.
+ *
+ * The track is 6px and the thumb 18px, so the rest of the height is clear
+ * space above and below — a 34px target a thumb can find on a phone without
+ * catching the control underneath it. Both engines centre the track in the
+ * content box, so growing the element does not move the track or the fill.
  */
 .loom-slider {
   -webkit-appearance: none;
   appearance: none;
-  height: 22px;
+  height: 34px;
   background: transparent;
   cursor: pointer;
 }
