@@ -15,7 +15,18 @@
 
 const SHOT_KEY = "loomlace:shot";
 
-type Capturer = () => string | null;
+/**
+ * `maxPx` caps the longest side; `quality` is the JPEG quality.
+ *
+ * The scene still RENDERS at full size and downsamples afterwards, rather than
+ * rendering small. A brilliant cut's facets are a picket fence of near-mirror
+ * edges, and rendering them at 320px turns the highlights to mush; rendering
+ * big and shrinking is supersampling, and it is what makes a thumbnail still
+ * look like a photograph of a gemstone.
+ */
+export type ShotOptions = { maxPx?: number; quality?: number };
+
+type Capturer = (options?: ShotOptions) => string | null;
 
 let capturer: Capturer | null = null;
 
@@ -28,9 +39,9 @@ export function registerStudioCapture(fn: Capturer): () => void {
 }
 
 /** A JPEG data URL of the live canvas, or null if no 3D scene is mounted. */
-export function captureStudioShot(): string | null {
+export function captureStudioShot(options?: ShotOptions): string | null {
   try {
-    return capturer?.() ?? null;
+    return capturer?.(options) ?? null;
   } catch {
     return null;
   }

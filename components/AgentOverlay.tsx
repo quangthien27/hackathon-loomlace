@@ -225,8 +225,12 @@ export function PriceBreakdown({
         <span className="font-serif text-[22px] tracking-tight">{total}</span>
       </div>
       <ul className="mt-3 flex flex-col gap-1">
-        {lines.map((l) => (
-          <li key={l.label} className="flex justify-between gap-3 text-[11.5px]">
+        {/* Keyed by position, not by label: two stones of the same type and cut
+            produce two lines called "Diamond (round)", and React drops one of
+            them for a duplicate key. A price line has no identity beyond where
+            it sits in a list that is rebuilt from the design on every render. */}
+        {lines.map((l, i) => (
+          <li key={i} className="flex justify-between gap-3 text-[11.5px]">
             <span className="opacity-55">{l.detail}</span>
             <span className="shrink-0 font-mono opacity-70">
               {new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(l.pence / 100)}

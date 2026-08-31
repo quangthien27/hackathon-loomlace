@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ActivityFeed, AgentBadge, PriceBreakdown } from "@/components/AgentOverlay";
 import { Controls } from "@/components/Controls";
+import { LooksStrip } from "@/components/LooksStrip";
+import { useSavedLooks } from "@/components/useSavedLooks";
 import { useEasedDesign } from "@/components/useEasedDesign";
 import type { GemMode } from "@/components/three/Ring3D";
 import {
@@ -83,6 +85,17 @@ export default function Studio3DPage() {
   // polish map spreads the highlight rather than concentrating it, so the
   // setting that looked right before the two of them lands hot.
   const [exposure, setExposure] = useState(1.35);
+  // Bloom intensity, on its own control because it is a different complaint
+  // from "too bright". Exposure scales the whole studio, so pulling it down to
+  // stop the stone flaring takes the gold down with it and the ring goes muddy
+  // before the flare goes away — the stone is already clipping at any exposure
+  // worth looking at. Glare is what actually reads as too much light.
+  // Starts BELOW the bloom's old fixed 0.3. Shipping a control at exactly the
+  // value someone complained about answers the request for a knob without
+  // answering the complaint — and the effect lives on the edges, where the
+  // stone stops reading as a cut gem, so a little goes further than a mean
+  // pixel value suggests. The full range is still there to push it back up.
+  const [glare, setGlare] = useState(0.18);
   const [tone, setTone] = useState<BackdropTone>("studio");
   const [spinning, setSpinning] = useState(false);
   // Read like any other external, unchanging fact about the environment.
@@ -123,6 +136,8 @@ export default function Studio3DPage() {
     if (restored.current) scheduleSave(design);
   }, [design]);
 
+  useSavedLooks();
+
   const price = estimatePrice(design);
 
   return (
@@ -147,6 +162,7 @@ export default function Studio3DPage() {
             exposure={exposure}
             tone={tone}
             spinning={spinning}
+            glare={glare}
             fpsRef={fpsRef}
             onDragChange={setDragging}
           />
@@ -157,6 +173,10 @@ export default function Studio3DPage() {
         <p className="sr-only" role="img" aria-label={describeDesign(design)} />
 
         <AgentBadge available={available} tools={tools} tone={webgl ? "dark" : "light"} />
+        {/* Opposite corner from the tools badge on purpose: the two are the
+            page's two ledgers — what the agent CAN do, and what either of you
+            has decided is worth keeping — and they should never overlap. */}
+        <LooksStrip design={design} tone={webgl ? "dark" : "light"} />
         <ActivityFeed activity={activity} />
 
         {/* Every canvas control lives in ONE cluster, bottom-right. They used to
@@ -231,19 +251,38 @@ export default function Studio3DPage() {
               </button>
             </div>
 
-            <label className="pointer-events-auto flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 ring-1 ring-white/10 backdrop-blur-md">
-              <span className="opacity-75">light</span>
-              <input
-                type="range"
-                min={0.8}
-                max={3.2}
-                step={0.05}
-                value={exposure}
-                onChange={(e) => setExposure(Number(e.target.value))}
-                aria-label="Studio brightness"
-                className="h-1 w-16 cursor-pointer appearance-none rounded-full bg-white/30 accent-white sm:w-20"
-              />
-            </label>
+            {/* Light and glare share a pill: they are the two halves of one
+                question — how much light, and how far it spills — and reading
+                them as a pair is what stops someone winding the exposure down
+                to fix a flare it was never going to fix. */}
+            <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-black/60 px-3 py-1.5 ring-1 ring-white/10 backdrop-blur-md">
+              <label className="flex items-center gap-2">
+                <span className="opacity-75">light</span>
+                <input
+                  type="range"
+                  min={0.8}
+                  max={3.2}
+                  step={0.05}
+                  value={exposure}
+                  onChange={(e) => setExposure(Number(e.target.value))}
+                  aria-label="Studio brightness"
+                  className="h-1 w-12 cursor-pointer appearance-none rounded-full bg-white/30 accent-white sm:w-20"
+                />
+              </label>
+              <label className="flex items-center gap-2">
+                <span className="opacity-75">glare</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={0.6}
+                  step={0.02}
+                  value={glare}
+                  onChange={(e) => setGlare(Number(e.target.value))}
+                  aria-label="Glare — how far a highlight bleeds past its edge"
+                  className="h-1 w-12 cursor-pointer appearance-none rounded-full bg-white/30 accent-white sm:w-20"
+                />
+              </label>
+            </div>
 
             <div className="pointer-events-auto flex overflow-hidden rounded-full bg-black/60 ring-1 ring-white/10 backdrop-blur-md">
               {(["specular", "refractive", "refract+core"] as const).map((label) => {

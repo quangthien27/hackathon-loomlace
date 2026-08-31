@@ -212,7 +212,7 @@ function StudioCapture() {
   const camera = useThree((s) => s.camera);
   useEffect(
     () =>
-      registerStudioCapture(() => {
+      registerStudioCapture((options) => {
         const size = gl.getSize(new Vector2());
         const w = Math.floor(size.x);
         const h = Math.floor(size.y);
@@ -253,7 +253,22 @@ function StudioCapture() {
           image.data.set(pixels.subarray(from, from + stride), y * stride);
         }
         ctx.putImageData(image, 0, 0);
-        return out.toDataURL("image/jpeg", 0.88);
+
+        const quality = options?.quality ?? 0.88;
+        const maxPx = options?.maxPx;
+        if (!maxPx || Math.max(w, h) <= maxPx) return out.toDataURL("image/jpeg", quality);
+
+        // Downsample AFTER the full-size render — see ShotOptions in capture.ts
+        // for why this is not simply a smaller render target.
+        const scale = maxPx / Math.max(w, h);
+        const small = document.createElement("canvas");
+        small.width = Math.max(1, Math.round(w * scale));
+        small.height = Math.max(1, Math.round(h * scale));
+        const smallCtx = small.getContext("2d");
+        if (!smallCtx) return out.toDataURL("image/jpeg", quality);
+        smallCtx.imageSmoothingQuality = "high";
+        smallCtx.drawImage(out, 0, 0, small.width, small.height);
+        return small.toDataURL("image/jpeg", quality);
       }),
     [gl, scene, camera],
   );
@@ -363,6 +378,7 @@ export function RingScene3D({
   design,
   mode,
   exposure,
+  glare,
   tone,
   spinning,
   fpsRef,
@@ -370,9 +386,14 @@ export function RingScene3D({
 }: {
   design: DesignState;
   mode: GemMode;
-  /** Renderer exposure. The one light control worth exposing: it moves the
-   *  whole studio together instead of letting individual lamps drift apart. */
+  /** Renderer exposure. Moves the whole studio together instead of letting
+   *  individual lamps drift apart. */
   exposure: number;
+  /** Bloom intensity — how far a specular bleeds past its own edge. Separate
+   *  from `exposure` because the two failures look alike and are not: turning
+   *  the light down darkens the gold long before it stops the stone flaring,
+   *  since the stone is already clipping at any exposure worth using. */
+  glare: number;
   /** The paper behind the ring. Backdrop only — the lights do not move. */
   tone: BackdropTone;
   /** Turntable: orbits the camera slowly so the ring can be watched rather than driven. */
@@ -440,13 +461,18 @@ export function RingScene3D({
         large part of what says "photograph". Threshold sits high on purpose so
         only the actual speculars glow; drop it and the gold turns to fog.
 
+        Only the INTENSITY is on a slider. Putting the threshold on one too was
+        tempting and would have been worse: the two interact, so the control
+        stops being monotonic — halfway along could look glarier than either
+        end — and there is no defensible default left to return to.
+
         The composer forces the renderer's tone mapping off and does it in the
         final pass instead, so NeutralToneMapping has to be restated here to
         keep the studio looking the way it did before the effect existed.
       */}
       <EffectComposer multisampling={4}>
         <Bloom
-          intensity={0.3}
+          intensity={glare}
           luminanceThreshold={0.95}
           luminanceSmoothing={0.1}
           radius={0.5}

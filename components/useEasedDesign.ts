@@ -2,9 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { DesignState } from "@/lib/design";
-import { designsDifferNumerically, easeOutCubic, lerpDesign } from "@/lib/animate";
-
-const DURATION_MS = 420;
+import { DURATION_MS, designsDifferNumerically, easeOutCubic, lerpDesign } from "@/lib/animate";
 
 /**
  * Returns a design that eases towards the real one, for RENDERING ONLY.

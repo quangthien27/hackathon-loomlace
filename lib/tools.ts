@@ -8,6 +8,8 @@ import {
   type Profile,
   type StoneType,
 } from "./design";
+import { describeDesign } from "./describe";
+import { currentLooks, findLook, MAX_LOOKS, restoreLook, saveLook, useLooks } from "./looks";
 import { orderHandoff } from "./order";
 import { estimatePrice, formatGBP } from "./price";
 import { PRESET_NAMES, PRESET_BLURB } from "./presets";
@@ -355,6 +357,144 @@ export const coreTools: ModelContextTool[] = [
           `${countChange}. Metal (${after.band.metal})${after.stones[0] ? `, stone type (${after.stones[0].type})` : ""}` +
           `, and engraving were left untouched.`,
       );
+    },
+  },
+
+  {
+    name: "save_look",
+    description:
+      "Freeze the ring exactly as it is right now as a saved 'look', so you can change it " +
+      "freely afterwards and still come back. This is how you offer a customer a real " +
+      "choice: save the current ring, try a variation, save that too, then restore whichever " +
+      "they preferred — nothing else in this app is undoable, so a look is the only way back " +
+      "to a design once you have edited past it. Give it a short label they'd recognise " +
+      `("the warmer one", "under £3,000"); omit it and one is generated from the design. ` +
+      "Returns the look's number — the handle restore_look takes. Only the most recent " +
+      `${MAX_LOOKS} looks are kept; saving past that drops the oldest. This tool takes about ` +
+      "half a second to return because it waits for the ring to finish animating into place " +
+      "before photographing it for the customer's thumbnail strip — the photo is for them, " +
+      "not for you, and is never returned to you.",
+    inputSchema: {
+      type: "object",
+      properties: { label: { type: "string", maxLength: 60 } },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false },
+    execute: async (input) => {
+      const i = (input ?? {}) as { label?: unknown };
+      if (i.label !== undefined && typeof i.label !== "string")
+        return fail('"label" must be a string.');
+
+      const before = currentLooks().length;
+      const look = await saveLook(i.label as string | undefined);
+      const evicted = before === MAX_LOOKS;
+
+      return {
+        ok: true,
+        summary:
+          `Saved "${look.label}" as look ${look.n}. Restore it later with ` +
+          `restore_look({ n: ${look.n} }).` +
+          (evicted ? ` The oldest look was dropped to stay within ${MAX_LOOKS}.` : ""),
+        n: look.n,
+        label: look.label,
+        design: currentDesign(),
+      };
+    },
+  },
+
+  {
+    name: "list_looks",
+    description:
+      "List the looks saved so far, oldest first — each one's number, its label, what the " +
+      "ring actually is in words, and what it would cost. Use it to compare variations for " +
+      "the customer without restoring each one in turn, and to check which numbers are still " +
+      "live before calling restore_look. Numbers are never reused, so a look you saved " +
+      "earlier keeps its number even after older looks have been dropped, which means the " +
+      "list can have gaps in it. Read-only — never changes the ring.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+    execute: async () => {
+      // Projected field by field, NOT spread. A Look carries a base64 JPEG
+      // thumbnail for the human's strip; `...look` would push tens of
+      // kilobytes of unreadable image into the model's context on every call.
+      const looks = currentLooks().map((l) => ({
+        n: l.n,
+        label: l.label,
+        description: describeDesign(l.design),
+        total: formatGBP(estimatePrice(l.design).totalPence),
+        savedAt: new Date(l.at).toISOString(),
+      }));
+      return {
+        ok: true,
+        summary: looks.length
+          ? `${looks.length} saved look(s): ` +
+            looks.map((l) => `${l.n} — ${l.label}`).join("; ") +
+            "."
+          : "No looks have been saved yet. Call save_look to keep the current ring.",
+        looks,
+      };
+    },
+  },
+
+  {
+    name: "restore_look",
+    description:
+      "Put a saved look back on the screen, replacing the ring currently being designed. " +
+      "Everything comes back together — band, stones, setting, engraving, size — because a " +
+      "look is a whole design and not a patch. The current ring is NOT saved first, so if " +
+      "the customer might want it back, call save_look before this. Pass the number from " +
+      "save_look or list_looks; if that number no longer exists, nothing changes and the " +
+      "summary tells you which numbers do.",
+    inputSchema: {
+      type: "object",
+      properties: { n: { type: "number" } },
+      required: ["n"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false },
+    execute: async (input) => {
+      const n = (input as { n?: unknown } | null)?.n;
+      if (typeof n !== "number" || !Number.isFinite(n)) return fail('"n" must be a number.');
+
+      const look = restoreLook(n);
+      if (!look) {
+        const live = currentLooks().map((l) => l.n);
+        return ok(
+          `There is no look ${n} — nothing restored. ` +
+            (live.length ? `Saved looks: ${live.join(", ")}.` : "No looks have been saved yet."),
+        );
+      }
+      return ok(`Restored look ${look.n}, "${look.label}". ${describeDesign(look.design)}`);
+    },
+  },
+
+  {
+    name: "delete_look",
+    description:
+      "Forget a saved look by number. Only worth calling to clear something the customer " +
+      "has ruled out — you do not need to delete anything to make room, since saving past " +
+      `${MAX_LOOKS} looks drops the oldest by itself. The design on screen is untouched ` +
+      "either way, even if it is the one that look was saved from.",
+    inputSchema: {
+      type: "object",
+      properties: { n: { type: "number" } },
+      required: ["n"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false },
+    execute: async (input) => {
+      const n = (input as { n?: unknown } | null)?.n;
+      if (typeof n !== "number" || !Number.isFinite(n)) return fail('"n" must be a number.');
+
+      const look = findLook(n);
+      if (!look || !useLooks.getState().remove(n)) {
+        const live = currentLooks().map((l) => l.n);
+        return ok(
+          `There is no look ${n} — nothing deleted. ` +
+            (live.length ? `Saved looks: ${live.join(", ")}.` : "No looks have been saved yet."),
+        );
+      }
+      return ok(`Deleted look ${n}, "${look.label}". ${currentLooks().length} look(s) remain.`);
     },
   },
 

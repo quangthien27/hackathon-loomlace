@@ -5,6 +5,7 @@ import { BAND_MAX_MM, BAND_MIN_MM, centreStone, STONE_MAX_MM, STONE_MIN_MM } fro
 import { METAL, STONE, STONE_SWATCH } from "@/lib/render/materials";
 import { PRESET_BLURB, PRESET_NAMES, type PresetName } from "@/lib/presets";
 import { useDesign } from "@/lib/store";
+import { LooksPanel } from "./LooksStrip";
 
 const PROFILES: Profile[] = ["flat", "court", "bevel", "knife-edge"];
 const SETTINGS: Setting[] = ["solitaire", "halo", "pave", "bezel"];
@@ -218,6 +219,10 @@ export function Controls({ design }: { design: DesignState }) {
           ))}
         </div>
       </Group>
+
+      {/* Last, and deliberately after Style: presets are the edit most worth
+          being able to take back, so the way back sits directly under them. */}
+      <LooksPanel />
     </div>
   );
 }

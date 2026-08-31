@@ -19,6 +19,7 @@ import type {
   StoneType,
   View,
 } from "./design";
+import type { Look } from "./looks";
 
 const STORAGE_KEY = "loomlace:design";
 
@@ -149,5 +150,71 @@ export function scheduleSave(design: DesignState): void {
   saveTimer = setTimeout(() => {
     saveTimer = null;
     void saveDesign(design);
+  }, SAVE_DEBOUNCE_MS);
+}
+
+// ---------------------------------------------------------------------------
+// Saved looks
+// ---------------------------------------------------------------------------
+
+/**
+ * Its own key and its own version, deliberately.
+ *
+ * A look CONTAINS a DesignState, so it is tempting to store both under one
+ * envelope — but then bumping the design's schema for an unrelated shape change
+ * would throw away every look the customer had saved, which is the one thing
+ * this feature exists to stop happening.
+ */
+const LOOKS_KEY = "loomlace:looks";
+export const LOOKS_SCHEMA_VERSION = 1;
+
+type StoredLooks = { version: number; looks: Look[] };
+
+function isLook(v: unknown): v is Look {
+  if (typeof v !== "object" || v === null) return false;
+  const l = v as Record<string, unknown>;
+  return (
+    isFiniteNumber(l.n) &&
+    typeof l.label === "string" &&
+    isFiniteNumber(l.at) &&
+    (l.thumb === null || typeof l.thumb === "string") &&
+    isDesignState(l.design)
+  );
+}
+
+export async function saveLooks(looks: Look[]): Promise<void> {
+  if (isSSRorNoIDB()) return;
+  try {
+    const envelope: StoredLooks = { version: LOOKS_SCHEMA_VERSION, looks };
+    await set(LOOKS_KEY, envelope);
+  } catch {
+    // Six JPEG thumbnails is the one write here big enough to hit a quota.
+    // Losing the looks is survivable; throwing out of a render effect is not.
+  }
+}
+
+export async function loadLooks(): Promise<Look[] | null> {
+  if (isSSRorNoIDB()) return null;
+  try {
+    const raw = await get(LOOKS_KEY);
+    if (typeof raw !== "object" || raw === null) return null;
+    const envelope = raw as Record<string, unknown>;
+    if (envelope.version !== LOOKS_SCHEMA_VERSION) return null;
+    if (!Array.isArray(envelope.looks) || !envelope.looks.every(isLook)) return null;
+    return envelope.looks as Look[];
+  } catch {
+    return null;
+  }
+}
+
+let looksTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Same debounce as the design, so deleting three looks in a row is one write. */
+export function scheduleSaveLooks(looks: Look[]): void {
+  if (isSSRorNoIDB()) return;
+  if (looksTimer !== null) clearTimeout(looksTimer);
+  looksTimer = setTimeout(() => {
+    looksTimer = null;
+    void saveLooks(looks);
   }, SAVE_DEBOUNCE_MS);
 }

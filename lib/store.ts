@@ -45,6 +45,25 @@ type DesignStore = {
 let stoneSeq = 1;
 const nextStoneId = () => `s${++stoneSeq}`;
 
+/**
+ * Pull the counter past every id in a design that arrived from outside — a
+ * restored save, or a restored look.
+ *
+ * Without this, restoring a design containing `s3` into a freshly loaded page
+ * leaves the counter at 1, so the next `place_stone` with no id mints `s2`.
+ * `placeStone` decides "does this stone exist?" from the id it was PASSED, and
+ * it was passed none — so it appends, and now two stones share `s2`. From
+ * there, `lerpDesign`'s id-keyed map collapses them into one and
+ * `remove_stone("s2")` deletes both. All silent, and all downstream of a
+ * counter that forgot what had already been used.
+ */
+function reconcileStoneSeq(design: DesignState): void {
+  for (const stone of design.stones) {
+    const suffix = /^s(\d+)$/.exec(stone.id);
+    if (suffix) stoneSeq = Math.max(stoneSeq, Number(suffix[1]));
+  }
+}
+
 export const useDesign = create<DesignStore>((set, get) => ({
   design: initialDesign,
 
@@ -107,7 +126,10 @@ export const useDesign = create<DesignStore>((set, get) => ({
   setView: (view) => set((s) => ({ design: { ...s.design, view } })),
   setSizeUk: (sizeUk) => set((s) => ({ design: { ...s.design, sizeUk } })),
   applyPreset: (name) => set((s) => ({ design: applyPresetTo(s.design, name) })),
-  replace: (design) => set({ design }),
+  replace: (design) => {
+    reconcileStoneSeq(design);
+    set({ design });
+  },
   reset: () => set({ design: initialDesign }),
 }));
 

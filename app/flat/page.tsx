@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { ActivityFeed, AgentBadge, PriceBreakdown } from "@/components/AgentOverlay";
 import { Controls } from "@/components/Controls";
+import { LooksStrip } from "@/components/LooksStrip";
+import { useSavedLooks } from "@/components/useSavedLooks";
 import { RingCanvas } from "@/components/RingCanvas";
 import { useEasedDesign } from "@/components/useEasedDesign";
 import { orderHandoff } from "@/lib/order";
@@ -79,6 +81,8 @@ export default function Page() {
     if (restored.current) scheduleSave(design);
   }, [design]);
 
+  useSavedLooks();
+
   const price = estimatePrice(design);
 
   return (
@@ -89,6 +93,11 @@ export default function Page() {
           onMoveStone={(id, x, y) => useDesign.getState().placeStone({ id, x, y })}
         />
         <AgentBadge available={available} tools={tools} />
+        {/* No WebGL studio here to photograph, so these tiles fall back to the
+            look's metal. Worth keeping rather than gating: save_look and
+            restore_look are registered on this route too, and a strip the agent
+            can fill but the human cannot see would be the worse asymmetry. */}
+        <LooksStrip design={design} />
         <ActivityFeed activity={activity} />
       </section>
 

@@ -14,6 +14,15 @@
 
 import { clamp, type DesignState, type Stone } from "./design";
 
+/**
+ * How long a tween takes. Lives here rather than in the hook that runs it
+ * because two things depend on it: the rAF loop, and the delay `saveLook`
+ * waits before photographing the ring. That second one fails silently — raise
+ * the duration without raising the wait and thumbnails quietly start showing
+ * half-morphed band widths — so the number has one home and both read it.
+ */
+export const DURATION_MS = 420;
+
 export function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
