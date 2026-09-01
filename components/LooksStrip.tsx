@@ -121,9 +121,12 @@ export function LooksStrip({
 
               {/* The label reads on hover rather than under every tile — six
                   captions stacked down the edge of the studio compete with the
-                  ring for exactly the attention the ring should be winning. */}
+                  ring for exactly the attention the ring should be winning.
+                  Wraps rather than `whitespace-nowrap`: a label can run to 60
+                  characters (see saveLook), and a nowrap tooltip just runs
+                  past its own max-width instead of respecting it. */}
               <span
-                className={`pointer-events-none absolute right-[4.5rem] top-1/2 hidden max-w-[11rem] -translate-y-1/2 whitespace-nowrap rounded-lg px-2 py-1 text-[11px] backdrop-blur-md group-hover:block ${chrome}`}
+                className={`pointer-events-none absolute right-[4.5rem] top-1/2 z-20 hidden max-w-[11rem] -translate-y-1/2 break-words rounded-lg px-2 py-1 text-[11px] leading-snug backdrop-blur-md group-hover:block ${chrome}`}
               >
                 {look.label}
               </span>

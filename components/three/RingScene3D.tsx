@@ -57,8 +57,16 @@ type Orbit = { enabled: boolean; target: Vector3; update: () => void };
 function ViewRig({ design, ring }: { design: DesignState; ring: React.RefObject<Group | null> }) {
   const view = design.view;
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
-  const controls = useThree((s) => s.controls) as Orbit | null;
+  const controls = useThree((s) => s.controls) as (Orbit & { autoRotate?: boolean }) | null;
   const flying = useRef(true);
+  // How long the current flight has been going, in seconds. A hard ceiling on
+  // top of the distance check below — see why right above it.
+  const elapsed = useRef(0);
+  // The turntable, as it stood the moment this flight started. autoRotate is
+  // paused for the flight (see below) and restored to this rather than to
+  // `true`, so a flight that starts while stopped does not turn spinning back
+  // on.
+  const wasAutoRotating = useRef(false);
   // Ring size is part of this key, not just the view: it moves the aim point,
   // and the rig only steers while it is flying. Without it, resizing re-cut the
   // geometry under a camera that stayed pointed where the old ring used to be.
@@ -69,8 +77,19 @@ function ViewRig({ design, ring }: { design: DesignState; ring: React.RefObject<
     if (previous.current !== shot) {
       previous.current = shot;
       flying.current = true;
+      elapsed.current = 0;
+      // Suspended rather than left running: autoRotate reorbits the camera a
+      // little every frame regardless of `controls.enabled`, and lerping
+      // toward a FIXED destination while that keeps nudging the camera away
+      // from it settles into a standoff — the two forces balance out short of
+      // the arrival threshold below, `flying` never clears, and the turntable
+      // and dragging both stay dead once the flight should have long finished.
+      if (controls) {
+        wasAutoRotating.current = controls.autoRotate ?? false;
+        controls.autoRotate = false;
+      }
     }
-  }, [shot]);
+  }, [shot, controls]);
 
   useFrame((_, dt) => {
     // Solved every frame against the current design, not looked up once: ring
@@ -82,6 +101,7 @@ function ViewRig({ design, ring }: { design: DesignState; ring: React.RefObject<
     ring.current?.quaternion.slerp(cfg.quaternion, 1 - Math.exp(-dt * 6));
 
     if (!flying.current) return;
+    elapsed.current += dt;
 
     const k = 1 - Math.exp(-dt * 4.2);
     camera.position.lerp(TMP.set(...cfg.camera), k);
@@ -98,9 +118,17 @@ function ViewRig({ design, ring }: { design: DesignState; ring: React.RefObject<
       camera.lookAt(TMP.set(...cfg.target));
     }
 
-    if (camera.position.distanceTo(TMP.set(...cfg.camera)) < 0.15) {
+    // Time out the flight even if the camera never quite settles inside the
+    // threshold — see the autoRotate note above for how that happens. One
+    // second is generous next to the ~250ms this convergence takes when
+    // nothing is fighting it.
+    const arrived = camera.position.distanceTo(TMP.set(...cfg.camera)) < 0.15;
+    if (arrived || elapsed.current > 1) {
       flying.current = false;
-      if (controls) controls.enabled = true;
+      if (controls) {
+        controls.enabled = true;
+        controls.autoRotate = wasAutoRotating.current;
+      }
     }
   });
 
