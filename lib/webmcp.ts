@@ -91,16 +91,39 @@ function pushActivity(tool: string, summary: string) {
   for (const l of activityListeners) l();
 }
 
+/** A non-empty string property of a tool result, or null. */
+function stringField(result: unknown, key: string): string | null {
+  if (!result || typeof result !== "object") return null;
+  const value = (result as Record<string, unknown>)[key];
+  return typeof value === "string" && value ? value : null;
+}
+
+/**
+ * `summary` first, then `error`, and only then a bare "done".
+ *
+ * A rejected call returns `{ ok: false, error }` and no `summary` — reading
+ * `summary` alone logged every refusal as "done", so the one moment the log
+ * exists to make visible (the agent being told no, and correcting itself) was
+ * the one moment it hid. A throw is logged too, for the same reason: a tool
+ * that vanishes from the feed mid-demo looks like the page stopped listening.
+ * It is re-thrown untouched — the agent still has to be told it failed.
+ */
 function withLogging(tool: ModelContextTool): ModelContextTool {
   return {
     ...tool,
     execute: async (input, options) => {
-      const result = await tool.execute(input, options);
-      const summary =
-        result && typeof result === "object" && "summary" in result
-          ? String((result as { summary: unknown }).summary)
-          : "done";
-      pushActivity(tool.name, summary);
+      let result: unknown;
+      try {
+        result = await tool.execute(input, options);
+      } catch (err) {
+        pushActivity(tool.name, err instanceof Error ? err.message : "failed");
+        throw err;
+      }
+
+      pushActivity(
+        tool.name,
+        stringField(result, "summary") ?? stringField(result, "error") ?? "done",
+      );
       return result;
     },
   };

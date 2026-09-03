@@ -32,7 +32,7 @@ export const METAL: Record<Metal, Ramp & { label: string }> = {
     deep: "#5F4A21",
   },
   white: {
-    label: "white gold",
+    label: "18k white gold",
     highlight: "#FDFDFE",
     light: "#E9EBEF",
     base: "#C9CDD4",

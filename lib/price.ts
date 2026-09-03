@@ -8,7 +8,7 @@
  * `formatGBP` ever produces a display string.
  */
 
-import { centreStone } from "./design";
+import { centreStone, METAL_WORD } from "./design";
 import type { Cut, DesignState, Metal, Setting, Stone, StoneType } from "./design";
 import { ukSizeRadius } from "./render/contract";
 
@@ -79,10 +79,10 @@ function priceMetal(design: DesignState): PriceLine {
   const pence = Math.round(grams * METAL_RATE_PENCE_PER_GRAM[band.metal]);
   return {
     label: "Metal",
-    detail: `${grams.toFixed(2)}g of ${band.metal} gold`.replace(
-      "platinum gold",
-      "platinum",
-    ),
+    // METAL_WORD, not the raw enum: this line is read aloud to a customer, and
+    // appending "gold" to whatever the metal happens to be produced "platinum
+    // gold" — a material that does not exist.
+    detail: `${grams.toFixed(2)}g of ${METAL_WORD[band.metal]}`,
     pence,
   };
 }
@@ -227,7 +227,7 @@ function buildSummary(design: DesignState, lines: PriceLine[], totalPence: numbe
   return (
     `This design comes to approximately ${formatGBP(totalPence)}, driven mostly by ` +
     `${biggestLine.label.toLowerCase()} (${formatGBP(biggestLine.pence)}) — ` +
-    `a ${design.band.widthMm.toFixed(1)}mm ${design.band.profile} ${design.band.metal} gold band with ${stoneText}.`
+    `a ${design.band.widthMm.toFixed(1)}mm ${design.band.profile} ${METAL_WORD[design.band.metal]} band with ${stoneText}.`
   );
 }
 

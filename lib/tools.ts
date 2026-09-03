@@ -16,20 +16,6 @@ import { PRESET_NAMES, PRESET_BLURB } from "./presets";
 import { currentDesign, useDesign } from "./store";
 
 /**
- * Placeholder destination for add_to_cart. TODO: replace with the real
- * RubyJewel custom-order URL before submission — this is a stand-in so the
- * handoff flow is fully wired and demoable ahead of that URL existing.
- */
-/**
- * Where a finished design is handed off for checkout.
- *
- * Defaults to Loomlace's own /order page, which is self-contained and always
- * works. Point NEXT_PUBLIC_STORE_URL at a real storefront's custom-order page
- * to hand off there instead — the design travels as query params either way, so
- * no integration work is needed on the receiving end beyond reading them.
- */
-
-/**
  * Accepts the common ways a human or agent writes a UK ring size half —
  * "L½", "L 1/2", "L half" — and normalises them to a single letter plus an
  * optional "½". Returns null (rather than throwing) for anything that isn't
@@ -83,6 +69,19 @@ function enumArg<T extends string>(
   return typeof value === "string" && (allowed as readonly string[]).includes(value)
     ? (value as T)
     : null;
+}
+
+/**
+ * A required string argument, checked rather than asserted.
+ *
+ * `input as { id: string }` is a compile-time promise about a value that came
+ * from a model, and the compiler is in no position to keep it. A number or a
+ * missing property reaches the handler as-is, and every downstream comparison
+ * then quietly fails to match instead of saying so.
+ */
+function stringArg(input: unknown, field: string): string | null {
+  const value = (input as Record<string, unknown> | null)?.[field];
+  return typeof value === "string" ? value : null;
 }
 
 const METALS = ["yellow", "white", "rose", "platinum"] as const;
@@ -183,9 +182,11 @@ export const coreTools: ModelContextTool[] = [
   {
     name: "set_view",
     description:
-      "Rotate the ring on screen. 'top' looks straight down at the stone and setting, " +
-      "'side' shows the profile and how high the stone sits, 'inside' shows the inner " +
-      "band surface where engraving goes. Cheap to call — use it to show your work.",
+      "Rotate the ring on screen. 'top' is the hero shot, looking down onto the stone and " +
+      "the setting that holds it; 'side' is the dead-on profile, which is the view that " +
+      "shows how high the stone sits; 'inside' moves in on the inner band surface, where " +
+      "engraving goes. Nothing about the ring itself changes — this only moves the camera, " +
+      "so it is cheap to call and worth calling to show the customer what you just did.",
     inputSchema: {
       type: "object",
       properties: { view: { type: "string", enum: ["top", "side", "inside"] } },
@@ -222,6 +223,10 @@ export const coreTools: ModelContextTool[] = [
       "a typical solitaire. type is the gem material (diamond/sapphire/emerald/ruby) and cut " +
       "is its shape (round/oval/emerald/princess) — these are independent, so type=emerald " +
       "with cut=round means a round-cut emerald gemstone, not the rectangular step cut. " +
+      "The FIRST stone in the design is the centre stone: the halo, bezel or claws are " +
+      "built around that one, and it is the stone the price is dominated by. A new stone " +
+      "is appended, so adding one never takes the centre away from the stone that already " +
+      "had it — pass that stone's id if what you actually want is to change the centre. " +
       "Prefer apply_style_preset when you want to restyle the whole ring at once; use this " +
       "tool for adding or fine-tuning one stone at a time.",
     inputSchema: {
@@ -240,6 +245,11 @@ export const coreTools: ModelContextTool[] = [
     execute: async (input) => {
       const i = (input ?? {}) as Record<string, unknown>;
 
+      // A non-string id used to be dropped rather than refused, which silently
+      // turned "move the stone you gave me" into "add a second stone" — the
+      // most confusing possible answer to a slightly wrong call.
+      if (i.id !== undefined && typeof i.id !== "string")
+        return fail('"id" must be a string — omit it entirely to add a new stone.');
       if (i.type !== undefined && !enumArg(i, "type", STONE_TYPES))
         return fail(expected("type", STONE_TYPES));
       if (i.cut !== undefined && !enumArg(i, "cut", CUTS)) return fail(expected("cut", CUTS));
@@ -275,7 +285,10 @@ export const coreTools: ModelContextTool[] = [
       "Remove a stone from the ring by id. Get the id from get_design_state or from the id " +
       "place_stone returned when you created it. If the id doesn't match any stone currently " +
       "on the ring, nothing is removed and the summary lists every id that DOES exist, so " +
-      "you can correct yourself instead of guessing again blindly.",
+      "you can correct yourself instead of guessing again blindly. Removing the first stone " +
+      "promotes the next one to centre, so the setting rebuilds itself around a different " +
+      "stone and the price moves — worth a get_design_state afterwards if the ring had more " +
+      "than one stone on it.",
     inputSchema: {
       type: "object",
       properties: { id: { type: "string" } },
@@ -284,7 +297,8 @@ export const coreTools: ModelContextTool[] = [
     },
     annotations: { readOnlyHint: false },
     execute: async (input) => {
-      const { id } = input as { id: string };
+      const id = stringArg(input, "id");
+      if (id === null) return fail('"id" is required and must be a string.');
       const removed = useDesign.getState().removeStone(id);
       if (!removed) {
         const ids = currentDesign().stones.map((s) => s.id);
@@ -551,19 +565,20 @@ export const coreTools: ModelContextTool[] = [
       const design = currentDesign();
       const url = orderHandoff(design, i.note);
 
+      // Both failure branches carry `error` AND `summary` with the same text:
+      // `error` is where the rest of this file puts a failure, and `summary` is
+      // what the on-screen activity log reads. A failure that set only one of
+      // them would be invisible to whichever side reads the other.
       if (typeof window === "undefined") {
-        return { ok: false, summary: "No browser window available to open the store in.", url, design };
+        const message = "No browser window available to open the store in.";
+        return { ok: false, error: message, summary: message, url, design };
       }
       const popup = window.open(url, "_blank", "noopener");
       if (!popup) {
-        return {
-          ok: false,
-          summary:
-            "The order page was blocked by the browser's popup blocker. Relay this URL to " +
-            `the customer so they can open it themselves: ${url}`,
-          url,
-          design,
-        };
+        const message =
+          "The order page was blocked by the browser's popup blocker. Relay this URL to " +
+          `the customer so they can open it themselves: ${url}`;
+        return { ok: false, error: message, summary: message, url, design };
       }
       return {
         ok: true,

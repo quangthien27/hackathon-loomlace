@@ -8,15 +8,8 @@
  * reason, so the sentence lives here rather than in either renderer.
  */
 
-import { type DesignState, type Stone } from "./design";
+import { SETTING_WORD, type DesignState, type Stone } from "./design";
 import { METAL } from "./render/materials";
-
-const SETTING_WORD: Record<DesignState["setting"], string> = {
-  solitaire: "solitaire",
-  halo: "halo",
-  pave: "pavé",
-  bezel: "bezel",
-};
 
 export function describeDesign(d: DesignState): string {
   const stones = d.stones

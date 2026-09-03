@@ -18,7 +18,7 @@
 import { create } from "zustand";
 import { DURATION_MS } from "./animate";
 import { captureStudioShot } from "./capture";
-import { centreStone, type DesignState, type Metal, type Setting } from "./design";
+import { centreStone, METAL_WORD, SETTING_WORD, type DesignState } from "./design";
 import { useDesign } from "./store";
 
 export type Look = {
@@ -63,20 +63,6 @@ const THUMB_PX = 320;
  * drifts is silent: nothing errors, the thumbnails are just subtly wrong.
  */
 const SETTLE_MS = DURATION_MS + 60;
-
-const METAL_WORD: Record<Metal, string> = {
-  yellow: "yellow gold",
-  white: "white gold",
-  rose: "rose gold",
-  platinum: "platinum",
-};
-
-const SETTING_WORD: Record<Setting, string> = {
-  solitaire: "solitaire",
-  halo: "halo",
-  pave: "pavé",
-  bezel: "bezel",
-};
 
 /**
  * A name short enough to sit under a thumbnail: the two or three things that

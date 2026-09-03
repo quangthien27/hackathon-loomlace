@@ -88,6 +88,31 @@ export function centreStone(design: DesignState): Stone | undefined {
   return design.stones[0];
 }
 
+/**
+ * The plain English for each choice, in the one place everything reads it.
+ *
+ * Not cosmetic. The band sentence used to append the word "gold" to whatever
+ * the metal was, which told an agent that had just switched to platinum that
+ * its ring was now "in platinum gold" — a material that does not exist, in the
+ * one string `set_band` hands back as proof of what it did. Short labels also
+ * have to be short: this is what sits under a 64-pixel thumbnail, so it is
+ * deliberately not `METAL[...].label` ("18k yellow gold"), which is the fuller
+ * wording the accessible description wants.
+ */
+export const METAL_WORD: Record<Metal, string> = {
+  yellow: "yellow gold",
+  white: "white gold",
+  rose: "rose gold",
+  platinum: "platinum",
+};
+
+export const SETTING_WORD: Record<Setting, string> = {
+  solitaire: "solitaire",
+  halo: "halo",
+  pave: "pavé",
+  bezel: "bezel",
+};
+
 export function describeBand(b: DesignState["band"]) {
-  return `${b.widthMm.toFixed(1)}mm ${b.profile} band in ${b.metal} gold`;
+  return `${b.widthMm.toFixed(1)}mm ${b.profile} band in ${METAL_WORD[b.metal]}`;
 }

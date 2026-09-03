@@ -1,9 +1,19 @@
 /**
- * THE COORDINATE CONTRACT.
+ * THE COORDINATE CONTRACT — for the SVG renderer.
  *
- * Everything drawn into the ring canvas — band, stones, settings, engraving —
- * shares this one space. Read this before writing any geometry. Pure data and
- * pure functions only: NO React imports anywhere under lib/render/.
+ * Everything drawn into the SVG ring canvas — band, stones, settings, engraving
+ * — shares this one space. Read this before writing any geometry under
+ * lib/render/. Pure data and pure functions only: NO React imports here.
+ *
+ * SCOPE. The SVG canvas is the no-WebGL fallback; the 3D studio under
+ * lib/render3d/ is the surface most people see, and it solves its own placement
+ * in real millimetres (see `placeStone` in lib/render3d/scene.ts). A stone's
+ * `x` means the same thing in both — position around the band. `y` does not:
+ * here it is a RADIAL position across a flat annulus whose thickness stands in
+ * for the band's width, whereas in 3D it is an AXIAL position along the finger,
+ * which is where the band's width physically is. Both are faithful to the view
+ * they draw; neither is the other's definition, so do not port a `y`
+ * calculation between them.
  *
  * ────────────────────────────────────────────────────────────────────────
  * CANVAS

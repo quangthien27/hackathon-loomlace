@@ -50,9 +50,9 @@ type Orbit = { enabled: boolean; target: Vector3; update: () => void };
 
 /**
  * Moves the camera and turns the ring when `view` changes, then gets out of the
- * way so the human can orbit. `set_view` is a read-only tool, so this is the
- * cheapest possible call producing the biggest visual payoff — in 3D it buys a
- * camera move rather than a redrawn picture.
+ * way so the human can orbit. `set_view` touches nothing about the ring itself,
+ * so it is the cheapest call in the set for the biggest visual payoff — in 3D
+ * it buys a camera move rather than a redrawn picture.
  */
 function ViewRig({ design, ring }: { design: DesignState; ring: React.RefObject<Group | null> }) {
   const view = design.view;
